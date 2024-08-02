@@ -4,3 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bevy = { version = "0.14", default-features = false }
+
+[[example]]
+name = "sprite_3d"
+path = "examples/sprite_3d.rs"
+
+[[example]]
+name = "sprite_3d_directions"
+path = "examples/sprite_3d_directions.rs"
+
+[[example]]
+name = "text"
+path = "examples/text.rs"
