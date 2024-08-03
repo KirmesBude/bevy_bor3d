@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.14", default-features = false }
+#TODO: Remove bevy_pbr if I use my own mesh and uniform
+bevy = { version = "0.14", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_pbr"] }
+
+[dev-dependencies]
+bevy = "0.14"
+bevy_flycam = "0.14"
+bevy-inspector-egui = "0.25"
 
 [[example]]
 name = "sprite_3d"
