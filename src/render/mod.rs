@@ -58,7 +58,7 @@ impl Plugin for BillboardRenderPlugin {
                 .in_set(RenderSet::PrepareBindGroups),
         );
 
-        // TODO: RenderCommand
+        // RenderCommand
         render_app.add_render_command::<Transparent3d, draw::DrawBillboardRenderCommand>();
     }
 }
