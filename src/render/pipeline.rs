@@ -1,5 +1,4 @@
 use bevy::{
-    pbr::MeshUniform,
     prelude::{FromWorld, Resource, World},
     render::{
         globals::GlobalsUniform,
@@ -16,7 +15,6 @@ use bevy::{
 pub struct BillboardPipeline {
     pub view_layout: BindGroupLayout,
     pub material_layout: BindGroupLayout,
-    pub mesh_layout: BindGroupLayout,
 }
 
 impl FromWorld for BillboardPipeline {
@@ -51,23 +49,6 @@ impl FromWorld for BillboardPipeline {
             ],
         );
 
-        /* TODO: Do I need this? Or can I just "generate" a mesh in the shader? */
-        let mesh_layout = render_device.create_bind_group_layout(
-            "billboard_mesh_layout",
-            &[BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::VERTEX_FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: true,
-                    // TODO: change this to MeshUniform::std140_size_static once crevice fixes this!
-                    // Context: https://github.com/LPGhatguy/crevice/issues/29
-                    min_binding_size: Some(MeshUniform::min_size()),
-                },
-                count: None,
-            }],
-        );
-
         let material_layout = render_device.create_bind_group_layout(
             "billboard_material_layout",
             &[
@@ -93,7 +74,6 @@ impl FromWorld for BillboardPipeline {
         Self {
             view_layout,
             material_layout,
-            mesh_layout,
         }
     }
 }

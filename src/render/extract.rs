@@ -9,8 +9,8 @@ use crate::Billboard;
 /* TODO: Do I have to despawn the entities with this approach? Alternative is resource */
 #[derive(Component)]
 pub struct ExtractedBillboard {
-    transform: GlobalTransform,
-    texture: AssetId<Image>,
+    pub transform: GlobalTransform,
+    pub texture: AssetId<Image>,
     /* TODO: visiblity, color, rect(atlas), custom_size, frustum */
 }
 

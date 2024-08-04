@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 #TODO: Remove bevy_pbr if I use my own mesh and uniform
-bevy = { version = "0.14", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_pbr"] }
+bevy = { version = "0.14", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline"] }
 
 [dev-dependencies]
 bevy = "0.14"
