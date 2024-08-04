@@ -1,15 +1,22 @@
 use bevy::{
-    prelude::{FromWorld, Resource, World},
+    prelude::{Component, FromWorld, Resource, World},
     render::{
         globals::GlobalsUniform,
+        mesh::PrimitiveTopology,
         render_resource::{
-            BindGroupLayout, BindGroupLayoutEntry, BindingType, BufferBindingType,
-            SamplerBindingType, ShaderStages, ShaderType, TextureSampleType, TextureViewDimension,
+            BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType,
+            ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState, PolygonMode,
+            PrimitiveState, RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType,
+            SpecializedRenderPipeline, TextureFormat, TextureSampleType, TextureViewDimension,
+            VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::RenderDevice,
-        view::ViewUniform,
+        texture::BevyDefault,
+        view::{ViewTarget, ViewUniform},
     },
 };
+
+use super::BILLBOARD_SHADER_HANDLE;
 
 #[derive(Clone, Resource)]
 pub struct BillboardPipeline {
@@ -78,42 +85,20 @@ impl FromWorld for BillboardPipeline {
     }
 }
 
-/* TODO: Spezialize BillboardPipeline, with/without direction maybe? */
-/* TODO: Is this the place to put the shader I want to use? */
-/*
 #[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TilemapPipelineKey {
+pub struct BillboardPipelineKey {
     pub msaa: u32,
-    pub map_type: TilemapType,
     pub hdr: bool,
 }
 
-impl SpecializedRenderPipeline for TilemapPipeline {
-    type Key = TilemapPipelineKey;
+impl SpecializedRenderPipeline for BillboardPipeline {
+    type Key = BillboardPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let mut shader_defs = Vec::new();
+        /* TODO: shader_defs */
+        let shader_defs = Vec::new();
 
-        #[cfg(feature = "atlas")]
-        shader_defs.push("ATLAS".into());
-
-        let mesh_string = match key.map_type {
-            TilemapType::Square { .. } => "SQUARE",
-            TilemapType::Isometric(coord_system) => match coord_system {
-                IsoCoordSystem::Diamond => "ISO_DIAMOND",
-                IsoCoordSystem::Staggered => "ISO_STAGGERED",
-            },
-            TilemapType::Hexagon(coord_system) => match coord_system {
-                HexCoordSystem::Column => "COLUMN_HEX",
-                HexCoordSystem::ColumnEven => "COLUMN_EVEN_HEX",
-                HexCoordSystem::ColumnOdd => "COLUMN_ODD_HEX",
-                HexCoordSystem::Row => "ROW_HEX",
-                HexCoordSystem::RowEven => "ROW_EVEN_HEX",
-                HexCoordSystem::RowOdd => "ROW_ODD_HEX",
-            },
-        };
-        shader_defs.push(mesh_string.into());
-
+        /* TODO: vertex layout */
         let formats = vec![
             // Position
             VertexFormat::Float32x4,
@@ -126,46 +111,33 @@ impl SpecializedRenderPipeline for TilemapPipeline {
         let vertex_layout =
             VertexBufferLayout::from_vertex_formats(VertexStepMode::Vertex, formats);
 
+        /* TODO: HDR Texture format */
+        let format = match key.hdr {
+            true => ViewTarget::TEXTURE_FORMAT_HDR,
+            false => TextureFormat::bevy_default(),
+        };
+
         RenderPipelineDescriptor {
             vertex: VertexState {
-                shader: TILEMAP_SHADER_VERTEX,
+                shader: BILLBOARD_SHADER_HANDLE,
                 entry_point: "vertex".into(),
                 shader_defs: shader_defs.clone(),
                 buffers: vec![vertex_layout],
             },
             fragment: Some(FragmentState {
-                shader: TILEMAP_SHADER_FRAGMENT,
+                shader: BILLBOARD_SHADER_HANDLE,
                 shader_defs,
                 entry_point: "fragment".into(),
                 targets: vec![Some(ColorTargetState {
-                    format: if key.hdr {
-                        ViewTarget::TEXTURE_FORMAT_HDR
-                    } else {
-                        TextureFormat::bevy_default()
-                    },
-                    blend: Some(BlendState {
-                        color: BlendComponent {
-                            src_factor: BlendFactor::SrcAlpha,
-                            dst_factor: BlendFactor::OneMinusSrcAlpha,
-                            operation: BlendOperation::Add,
-                        },
-                        alpha: BlendComponent {
-                            src_factor: BlendFactor::One,
-                            dst_factor: BlendFactor::One,
-                            operation: BlendOperation::Add,
-                        },
-                    }),
+                    format,
+                    blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            layout: vec![
-                self.view_layout.clone(),
-                self.mesh_layout.clone(),
-                self.material_layout.clone(),
-            ],
+            layout: vec![self.view_layout.clone(), self.material_layout.clone()],
             primitive: PrimitiveState {
                 conservative: false,
-                cull_mode: Some(Face::Back),
+                cull_mode: None, /* TODO: Culling */
                 front_face: FrontFace::Ccw,
                 polygon_mode: PolygonMode::Fill,
                 strip_index_format: None,
@@ -178,9 +150,8 @@ impl SpecializedRenderPipeline for TilemapPipeline {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            label: Some("tilemap_pipeline".into()),
+            label: Some("billboard_pipeline".into()),
             push_constant_ranges: vec![],
         }
     }
 }
-*/

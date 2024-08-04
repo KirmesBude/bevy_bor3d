@@ -1,8 +1,12 @@
 use bevy::{
     app::{App, Plugin},
+    asset::{load_internal_asset, Handle},
     core_pipeline::core_3d::Transparent3d,
-    prelude::IntoSystemConfigs,
-    render::{render_phase::AddRenderCommand, ExtractSchedule, Render, RenderApp, RenderSet},
+    prelude::{IntoSystemConfigs, Shader},
+    render::{
+        render_phase::AddRenderCommand, render_resource::SpecializedRenderPipelines,
+        ExtractSchedule, Render, RenderApp, RenderSet,
+    },
 };
 
 mod draw;
@@ -11,11 +15,21 @@ mod pipeline;
 mod prepare;
 mod queue;
 
+pub const BILLBOARD_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(307062806978783518533214479195188549290);
+
 #[derive(Debug, Default)]
 pub struct BillboardRenderPlugin;
 
 impl Plugin for BillboardRenderPlugin {
-    fn build(&self, _app: &mut App) {}
+    fn build(&self, app: &mut App) {
+        load_internal_asset!(
+            app,
+            BILLBOARD_SHADER_HANDLE,
+            "billboard.wgsl",
+            Shader::from_wgsl
+        );
+    }
 
     fn finish(&self, app: &mut App) {
         let render_app = match app.get_sub_app_mut(RenderApp) {
@@ -26,6 +40,7 @@ impl Plugin for BillboardRenderPlugin {
         // The first thing we need is a pipeline for our usecase
         // This will define the layouts -> what is available to the shader?
         render_app.init_resource::<pipeline::BillboardPipeline>();
+        render_app.init_resource::<SpecializedRenderPipelines<pipeline::BillboardPipeline>>();
 
         // Next we need to extract our stuff into the render world
         render_app.add_systems(ExtractSchedule, (extract::extract_billboard,));
