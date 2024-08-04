@@ -1,7 +1,6 @@
 use bevy::{
     prelude::{Component, FromWorld, Resource, World},
     render::{
-        globals::GlobalsUniform,
         mesh::PrimitiveTopology,
         render_resource::{
             BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType,
@@ -39,17 +38,6 @@ impl FromWorld for BillboardPipeline {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: true,
                         min_binding_size: Some(ViewUniform::min_size()),
-                    },
-                    count: None,
-                },
-                /* TODO: I do not think I need this actually */
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::VERTEX_FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(GlobalsUniform::min_size()),
                     },
                     count: None,
                 },
