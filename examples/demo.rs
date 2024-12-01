@@ -4,12 +4,17 @@
 use std::f32::consts::PI;
 
 use bevy::{
-    pbr::CascadeShadowConfigBuilder, prelude::*, render::camera::Viewport, window::WindowResized,
+    pbr::{CascadeShadowConfigBuilder, ExtendedMaterial}, prelude::*, render::camera::Viewport, window::WindowResized,
 };
+use bevy_bor3d::MyExtension;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, MyExtension>,
+        >::default())
+
         .add_systems(Startup, setup)
         .add_systems(Update, set_camera_viewports)
         .run();
@@ -18,13 +23,16 @@ fn main() {
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
 ) {
     // Billboard 3d sprite
     // TODO
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(100.0, 100.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
+        MeshMaterial3d(materials.add(ExtendedMaterial {
+            base: Color::srgb(0.3, 0.5, 0.3).into(),
+            extension: MyExtension { lol: 0.0 }
+        })),
     ));
 
     // Light
