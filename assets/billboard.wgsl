@@ -71,6 +71,7 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #endif
 
 #ifdef VERTEX_POSITIONS
+/*
     var right = normalize(view_bindings::view.clip_from_world[0].xyz);
     var up = normalize(view_bindings::view.clip_from_world[1].xyz);
     var forward = normalize(view_bindings::view.clip_from_world[2].xyz);
@@ -83,6 +84,9 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
     var inverse_rotation = transpose(rotation);
 
     var pos = inverse_rotation * vec4<f32>(vertex.position, 1.0);
+*/
+    var pos = vec4<f32>(vertex.position, 1.0);
+
     out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, pos);
     out.position = position_world_to_clip(out.world_position.xyz);
 #endif

@@ -4,7 +4,10 @@
 use std::f32::consts::PI;
 
 use bevy::{
-    pbr::{CascadeShadowConfigBuilder, ExtendedMaterial}, prelude::*, render::camera::Viewport, window::WindowResized,
+    pbr::{CascadeShadowConfigBuilder, ExtendedMaterial},
+    prelude::*,
+    render::camera::Viewport,
+    window::WindowResized,
 };
 use bevy_bor3d::MyExtension;
 
@@ -14,7 +17,6 @@ fn main() {
         .add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default())
-
         .add_systems(Startup, setup)
         .add_systems(Update, set_camera_viewports)
         .run();
@@ -31,7 +33,7 @@ fn setup(
         Mesh3d(meshes.add(Cuboid::new(100.0, 100.0, 100.0).mesh())),
         MeshMaterial3d(materials.add(ExtendedMaterial {
             base: Color::srgb(0.3, 0.5, 0.3).into(),
-            extension: MyExtension { lol: 0.0 }
+            extension: MyExtension { lol: 0.0 },
         })),
     ));
 
