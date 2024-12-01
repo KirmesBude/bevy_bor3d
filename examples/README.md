@@ -11,10 +11,12 @@ cargo run --example sprite_3d
 
 Example                | Description |
 -----------------------|-------------|
+[Demo]                 | Demo. | 
 [3D Sprite]            | Shows of how to use `bevy_bor3d` for 3d sprites. |
 [3D Sprite Directions] | Shows of how to use `bevy_bor3d` for 3d sprites with directions. |
 [Text]                 | Shows of how to use `bevy_bor3d` for 3d text. |
 
+[Demo]: (examples/demo.rs)
 [3D Sprite]: (examples/sprite_3d.rs)
 [3D Sprite Directions]: (examples/sprite_3d_directions.rs)
 [Text]: (examples/text.rs)
