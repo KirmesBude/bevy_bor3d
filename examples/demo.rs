@@ -28,7 +28,7 @@ fn setup(
     // Billboard 3d sprite
     // TODO
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(100.0, 100.0))),
+        Mesh3d(meshes.add(Cuboid::new(100.0, 100.0, 100.0).mesh())),
         MeshMaterial3d(materials.add(ExtendedMaterial {
             base: Color::srgb(0.3, 0.5, 0.3).into(),
             extension: MyExtension { lol: 0.0 }
