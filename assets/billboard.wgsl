@@ -57,6 +57,18 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
     var world_from_local = mesh_functions::get_world_from_local(vertex_no_morph.instance_index);
 #endif
 
+    var right = normalize(world_from_local[0].xyz);
+    var up = normalize(world_from_local[1].xyz);
+    var forward = normalize(world_from_local[2].xyz);
+    var rotation = mat4x4<f32>(
+        vec4<f32>(right, 0.0),
+        vec4<f32>(up, 0.0),
+        vec4<f32>(forward, 0.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0),
+    );
+    var inverse_rotation = transpose(rotation);
+    world_from_local = world_from_local * inverse_rotation; 
+
 #ifdef VERTEX_NORMALS
 #ifdef SKINNED
     out.world_normal = skinning::skin_normals(world_from_local, vertex.normal);
@@ -71,33 +83,23 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #endif
 
 #ifdef VERTEX_POSITIONS
-    var right = normalize(view_bindings::view.view_from_world[0].xyz);
-    var up = normalize(view_bindings::view.view_from_world[1].xyz);
-    var forward = normalize(view_bindings::view.view_from_world[2].xyz);
-    var rotation = mat4x4<f32>(
+    var pos = vec4<f32>(vertex.position, 1.0);
+
+    right = normalize(view_bindings::view.view_from_world[0].xyz);
+    up = normalize(view_bindings::view.view_from_world[1].xyz);
+    forward = normalize(view_bindings::view.view_from_world[2].xyz);
+    rotation = mat4x4<f32>(
         vec4<f32>(right, 0.0),
         vec4<f32>(up, 0.0),
         vec4<f32>(forward, 0.0),
         vec4<f32>(0.0, 0.0, 0.0, 1.0),
     );
-    var inverse_rotation = transpose(rotation);
+    inverse_rotation = transpose(rotation);
+    var view_from_world = view_bindings::view.view_from_world * inverse_rotation;
 
-    //var pos = inverse_rotation * vec4<f32>(vertex.position, 1.0);
-    var pos = vec4<f32>(vertex.position, 1.0);
-
-/*
     out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, pos);
-    out.position = position_world_to_clip(out.world_position.xyz);
-*/
+    out.position = view_bindings::view.clip_from_view * view_from_world * out.world_position;
 
-    var view_matrix = view_bindings::view.view_from_world;
-    view_matrix[0] = vec4<f32>(1.0, 0.0, 0.0, view_matrix[0].w);
-    view_matrix[1] = vec4<f32>(0.0, 1.0, 0.0, view_matrix[1].w);
-    view_matrix[2] = vec4<f32>(0.0, 0.0, 1.0, view_matrix[2].w);
-
-    out.world_position = world_from_local * pos;
-    var view_position = view_matrix * out.world_position;
-    out.position = view_bindings::view.clip_from_view * view_position;
 #endif
 
 #ifdef VERTEX_UVS_A
