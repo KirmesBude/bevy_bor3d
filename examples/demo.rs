@@ -4,51 +4,55 @@
 use std::f32::consts::PI;
 
 use bevy::{
-    pbr::{CascadeShadowConfigBuilder, ExtendedMaterial},
-    prelude::*,
-    render::camera::Viewport,
-    window::WindowResized,
+    pbr::CascadeShadowConfigBuilder, prelude::*, render::camera::Viewport, window::WindowResized,
 };
-use bevy_bor3d::MyExtension;
+use bevy_bor3d::MyMaterial;
 use ops::{cos, sin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MaterialPlugin::<
-            ExtendedMaterial<StandardMaterial, MyExtension>,
-        >::default())
+        .add_plugins(MaterialPlugin::<MyMaterial>::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, (set_camera_viewports, spin, orbit, shuffle))
+        .add_systems(
+            Update,
+            (
+                set_camera_viewports,
+                spin,
+                orbit,
+                shuffle,
+                create_array_texture,
+            ),
+        )
         .run();
+}
+
+#[derive(Resource)]
+struct LoadingTexture {
+    is_loaded: bool,
+    handle: Handle<Image>,
 }
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut extended_materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     // Billboard 3d sprite
     // TODO
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
-        MeshMaterial3d(extended_materials.add(ExtendedMaterial {
-            base: StandardMaterial {
-                unlit: true,
-                ..Color::srgb(0.3, 0.5, 0.3).into()
-            },
-            extension: MyExtension { lol: 0.0 },
-        })),
-        Transform::from_translation(Vec3::new(-65.0, 0.0, 0.0)),
-        Spinning::default(),
-        Shuffling::default(),
-    ));
+    // Start loading the texture.
+    commands.insert_resource(LoadingTexture {
+        is_loaded: false,
+        handle: asset_server.load("sprites/array.png"),
+    });
+
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
         MeshMaterial3d(materials.add(StandardMaterial {
             unlit: true,
-            ..Color::srgb(0.8, 0.2, 0.3).into()
+            base_color_texture: Some(asset_server.load("sprites/bossa1.png")),
+            ..Default::default()
         })),
         Transform::from_translation(Vec3::new(65.0, 0.0, 0.0)),
         Spinning::default(),
@@ -184,4 +188,41 @@ fn shuffle(mut query: Query<(&mut Transform, &mut Shuffling)>, time: Res<Time>) 
 
         transform.translation.x += offset;
     }
+}
+
+fn create_array_texture(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut loading_texture: ResMut<LoadingTexture>,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<MyMaterial>>,
+) {
+    if loading_texture.is_loaded
+        || !asset_server
+            .load_state(loading_texture.handle.id())
+            .is_loaded()
+    {
+        return;
+    }
+    loading_texture.is_loaded = true;
+    let image = images.get_mut(&loading_texture.handle).unwrap();
+
+    // Create a new array texture asset from the loaded texture.
+    let array_layers = 8;
+    image.reinterpret_stacked_2d_as_array(array_layers);
+
+    // Spawn some cubes using the array texture
+    let material_handle = materials.add(MyMaterial {
+        array_texture: loading_texture.handle.clone(),
+        layer: 0,
+    });
+
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
+        MeshMaterial3d(material_handle.clone()),
+        Transform::from_translation(Vec3::new(-65.0, 0.0, 0.0)),
+        Spinning::default(),
+        Shuffling::default(),
+    ));
 }
