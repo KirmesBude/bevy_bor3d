@@ -18,23 +18,32 @@ fn main() {
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, set_camera_viewports)
+        .add_systems(Update, (set_camera_viewports, spin))
         .run();
 }
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
+    mut extended_materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Billboard 3d sprite
     // TODO
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(100.0, 100.0, 100.0).mesh())),
-        MeshMaterial3d(materials.add(ExtendedMaterial {
+        Mesh3d(meshes.add(Cuboid::new(75.0, 75.0, 75.0).mesh())),
+        MeshMaterial3d(extended_materials.add(ExtendedMaterial {
             base: Color::srgb(0.3, 0.5, 0.3).into(),
             extension: MyExtension { lol: 0.0 },
         })),
+        Transform::from_translation(Vec3::new(-65.0, 0.0, 0.0)),
+        Spinning::default(),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(75.0, 75.0, 75.0).mesh())),
+        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.3))),
+        Transform::from_translation(Vec3::new(65.0, 0.0, 0.0)),
+        Spinning::default(),
     ));
 
     // Light
@@ -102,5 +111,14 @@ fn set_camera_viewports(
                 ..default()
             });
         }
+    }
+}
+
+#[derive(Debug, Default, Component)]
+struct Spinning;
+
+fn spin(mut transforms: Query<&mut Transform, With<Spinning>>, time: Res<Time>) {
+    for mut transform in &mut transforms {
+        transform.rotate_y(time.delta_secs() * 2.0 * PI / 20.0);
     }
 }
