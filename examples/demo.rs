@@ -32,9 +32,12 @@ fn setup(
     // Billboard 3d sprite
     // TODO
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(50.0, 50.0, 50.0).mesh())),
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
         MeshMaterial3d(extended_materials.add(ExtendedMaterial {
-            base: Color::srgb(0.3, 0.5, 0.3).into(),
+            base: StandardMaterial {
+                unlit: true,
+                ..Color::srgb(0.3, 0.5, 0.3).into()
+            },
             extension: MyExtension { lol: 0.0 },
         })),
         Transform::from_translation(Vec3::new(-65.0, 0.0, 0.0)),
@@ -42,8 +45,11 @@ fn setup(
         Shuffling::default(),
     ));
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(50.0, 50.0, 50.0).mesh())),
-        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.3))),
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            unlit: true,
+            ..Color::srgb(0.8, 0.2, 0.3).into()
+        })),
         Transform::from_translation(Vec3::new(65.0, 0.0, 0.0)),
         Spinning::default(),
         Shuffling::default(),
