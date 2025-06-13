@@ -23,6 +23,8 @@
     view_transformations::position_world_to_clip,
 }
 
+#import bevy_pbr::mesh_view_bindings as view_bindings
+
 // Material extension uniforms
 struct MyExtendedMaterial {
     quantize_steps: u32,
@@ -55,6 +57,29 @@ fn morph_vertex(vertex_in: Vertex) -> Vertex {
     return vertex;
 }
 #endif
+
+// billboard specific vertex functions
+fn billboard_mesh_position_local_to_world(world_from_local: mat4x4<f32>, vertex_position: vec4<f32>) -> vec4<f32> {
+    // We remove any rotation from world_from_local so the mesh in world space is not rotated -> facing +z?
+    var no_rotation = world_from_local;
+    no_rotation[0][0] = 1.0;
+    no_rotation[1][0] = 0.0;
+    no_rotation[2][0] = 0.0;
+    no_rotation[0][1] = 0.0;
+    no_rotation[1][1] = 1.0;
+    no_rotation[2][1] = 0.0;
+    no_rotation[0][2] = 0.0;
+    no_rotation[1][2] = 0.0;
+    no_rotation[2][2] = 1.0;
+    return no_rotation * vertex_position;
+}
+
+fn billboard_position_world_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
+    let inverse_rotation = mat3x3<f32>(view_bindings::view.world_from_clip[0].xyz, view_bindings::view.world_from_clip[1].xyz, view_bindings::view.world_from_clip[2].xyz);
+    let pos = inverse_rotation * world_pos;
+    let clip_pos = view_bindings::view.clip_from_world * vec4(pos, 1.0);
+    return clip_pos;
+}
 
 // vertex shader
 @vertex
@@ -95,9 +120,11 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #endif
 
 #ifdef VERTEX_POSITIONS
-    out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
-    out.position = position_world_to_clip(out.world_position.xyz);
+    out.world_position = billboard_mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
+    out.position = billboard_position_world_to_clip(out.world_position.xyz);
+    out.position = vec4<f32>(0.0,0.0,0.0,0.0);
 #endif
+    out.position = vec4<f32>(0.0,0.0,0.0,0.0);
 
 #ifdef VERTEX_UVS_A
     out.uv = vertex.uv;

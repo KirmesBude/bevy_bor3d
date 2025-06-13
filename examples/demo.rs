@@ -61,7 +61,7 @@ fn setup(
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(25.0, 25.0, 25.0))),
         MeshMaterial3d(cube_materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(0.0, 0.5, 0.0),
+        Transform::from_xyz(1.0, 0.5, 1.0),
     ));
 
     // 3d Sprite
@@ -75,8 +75,8 @@ fn setup(
             },
             extension: BillboardExtension { quantize_steps: 3 },
         })),
-        Transform::from_translation(Vec3::new(65.0, 0.0, 0.0)),
-        //Spinning::default(),
+        Transform::from_translation(Vec3::new(65.0, 5.0, 5.0)),
+        Spinning::default(),
         //Shuffling::default(),
     ));
 }
