@@ -1,5 +1,9 @@
 use bevy::{
-    app::Plugin, asset::Asset, pbr::{ExtendedMaterial, MaterialExtension, MaterialPlugin, StandardMaterial}, reflect::Reflect, render::render_resource::{AsBindGroup, ShaderRef}
+    app::Plugin,
+    asset::Asset,
+    pbr::{ExtendedMaterial, MaterialExtension, MaterialPlugin, StandardMaterial},
+    reflect::Reflect,
+    render::render_resource::{AsBindGroup, ShaderRef},
 };
 
 const BILLBOARD_SHADER_ASSET_PATH: &str = "billboard.wgsl";
@@ -8,7 +12,9 @@ pub struct BillboardPlugin;
 
 impl Plugin for BillboardPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        app.add_plugins(MaterialPlugin::<ExtendedMaterial<StandardMaterial, BillboardExtension>,>::default());
+        app.add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, BillboardExtension>,
+        >::default());
     }
 }
 
