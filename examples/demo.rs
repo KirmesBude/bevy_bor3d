@@ -3,12 +3,14 @@
 
 use std::f32::consts::PI;
 
-use bevy::{prelude::*, render::camera::Viewport, window::WindowResized};
+use bevy::{pbr::ExtendedMaterial, prelude::*, render::camera::Viewport, window::WindowResized};
+use bevy_bor3d::{BillboardExtension, BillboardPlugin};
 use ops::{cos, sin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(BillboardPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, (set_camera_viewports, spin, orbit, shuffle))
         .run();
@@ -17,7 +19,8 @@ fn main() {
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut cube_materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite3d_materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, BillboardExtension>>>,
     asset_server: Res<AssetServer>,
 ) {
     // Cameras and their dedicated UI
@@ -57,17 +60,20 @@ fn setup(
     // Reference cube
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(25.0, 25.0, 25.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+        MeshMaterial3d(cube_materials.add(Color::srgb_u8(124, 144, 255))),
         Transform::from_xyz(0.0, 0.5, 0.0),
     ));
 
     // 3d Sprite
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            unlit: true,
-            base_color_texture: Some(asset_server.load("sprites/bossa1.png")),
-            ..Default::default()
+        MeshMaterial3d(sprite3d_materials.add(ExtendedMaterial {
+            base: StandardMaterial {
+                unlit: true,
+                base_color_texture: Some(asset_server.load("sprites/bossa1.png")),
+                ..Default::default()
+            },
+            extension: BillboardExtension { quantize_steps: 3 },
         })),
         Transform::from_translation(Vec3::new(65.0, 0.0, 0.0)),
         //Spinning::default(),
