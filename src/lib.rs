@@ -1,5 +1,7 @@
+use bevy::ecs::query::With;
 use bevy::prelude::ReflectComponent;
 use bevy::prelude::ReflectResource;
+use bevy::transform::components::GlobalTransform;
 use bevy::{
     app::{Plugin, Update},
     asset::{Asset, AssetId, AssetServer, Assets, Handle},
@@ -40,6 +42,7 @@ impl Plugin for BillboardPlugin {
 
         app.add_systems(Update, (queue_array_texture, process_array_texture).chain());
         app.add_systems(Update, add_mesh_and_material);
+        app.add_systems(Update, extract_forward);
     }
 }
 
@@ -49,7 +52,18 @@ pub struct BillboardMaterial {
     #[texture(0, dimension = "2d_array")]
     #[sampler(1)]
     #[dependency]
-    pub image: Handle<Image>,
+    image: Handle<Image>,
+    #[uniform(2)]
+    forward: Vec3,
+}
+
+impl From<Handle<Image>> for BillboardMaterial {
+    fn from(image: Handle<Image>) -> Self {
+        Self {
+            image,
+            forward: Vec3::Z,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -83,7 +97,6 @@ impl Material for BillboardMaterial {
         let vertex_layout = layout.0.get_layout(&[
             Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
             Mesh::ATTRIBUTE_UV_0.at_shader_location(1),
-            Mesh::ATTRIBUTE_NORMAL.at_shader_location(2),
         ])?;
 
         descriptor.vertex.buffers = vec![vertex_layout];
@@ -117,6 +130,7 @@ fn queue_array_texture(
     }
 }
 
+// For every image we need to reinterpret it as a array texture
 fn process_array_texture(
     mut queue: ResMut<ArrayTextureQueue>,
     mut images: ResMut<Assets<Image>>,
@@ -136,6 +150,7 @@ fn process_array_texture(
     queue.queue = remaining_queue;
 }
 
+// Adding or changing a Sprite3d component will automatically add Mesh and Material
 fn add_mesh_and_material(
     mut commands: Commands,
     sprite3d: Query<(Entity, &Sprite3d), Changed<Sprite3d>>,
@@ -145,9 +160,21 @@ fn add_mesh_and_material(
     for (entity, sprite3d) in &sprite3d {
         commands.entity(entity).insert((
             Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
-            MeshMaterial3d(materials.add(BillboardMaterial {
-                image: sprite3d.image.clone(),
-            })),
+            MeshMaterial3d(materials.add(sprite3d.image.clone())),
         ));
+    }
+}
+
+// We need the entity forward vector in the fragment shader to decide which layer to sample
+fn extract_forward(
+    sprite3d: Query<
+        (&GlobalTransform, &MeshMaterial3d<BillboardMaterial>),
+        (With<Sprite3d>, Changed<GlobalTransform>),
+    >,
+    mut materials: ResMut<Assets<BillboardMaterial>>,
+) {
+    for (transform, material) in &sprite3d {
+        let material = materials.get_mut(material).unwrap();
+        material.forward = transform.forward().as_vec3();
     }
 }
