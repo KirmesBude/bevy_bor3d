@@ -9,6 +9,7 @@ bevy = "0.16.1"
 
 [dev-dependencies]
 bevy = "0.16.1"
+bevy-inspector-egui = "0.31"
 
 [[example]]
 name = "demo"
