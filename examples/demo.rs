@@ -4,7 +4,7 @@
 use std::f32::consts::PI;
 
 use bevy::{prelude::*, render::camera::Viewport, window::WindowResized};
-use bevy_bor3d::{BillboardPlugin, Sprite3d};
+use bevy_bor3d::{Billboard, BillboardPlugin, Sprite3d};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use ops::{cos, sin};
 
@@ -48,7 +48,7 @@ fn setup(
             CameraPosition {
                 pos: UVec2::new((index % 2) as u32, (index / 2) as u32),
             },
-            Orbiting,
+            //Orbiting,
         ));
     }
 
@@ -74,7 +74,11 @@ fn setup(
         Name::new("Sprite3d"),
         Sprite3d {
             image: asset_server.load("sprites/array.png"),
-            layers: 8,
+            ..Default::default()
+        },
+        Billboard {
+            layers: Some(8),
+            ..Default::default()
         },
         Transform::from_translation(Vec3::new(65.0, 5.0, 5.0)),
         Spinning::default(),

@@ -1,180 +1,44 @@
-use bevy::ecs::query::With;
-use bevy::prelude::ReflectComponent;
-use bevy::prelude::ReflectResource;
-use bevy::transform::components::GlobalTransform;
+use bevy::ecs::component::HookContext;
+use bevy::ecs::world::DeferredWorld;
 use bevy::{
-    app::{Plugin, Update},
-    asset::{Asset, AssetId, AssetServer, Assets, Handle},
-    ecs::{
-        component::Component,
-        entity::Entity,
-        query::{Added, Changed},
-        resource::Resource,
-        schedule::IntoScheduleConfigs,
-        system::{Commands, Query, Res, ResMut},
-    },
-    image::Image,
+    app::Plugin,
+    asset::Assets,
     math::{Vec2, Vec3, primitives::Plane3d},
-    pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin, MeshMaterial3d},
-    reflect::Reflect,
-    render::{
-        alpha::AlphaMode,
-        mesh::{Mesh, Mesh3d, MeshVertexBufferLayoutRef, Meshable},
-        render_resource::{
-            AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
-        },
-    },
+    pbr::MeshMaterial3d,
+    render::mesh::{Mesh, Mesh3d, Meshable},
 };
 
-const BILLBOARD_SHADER_ASSET_PATH: &str = "billboard.wgsl";
+pub use crate::billboard::Billboard;
+use crate::render::BillboardMaterial;
+pub use crate::sprite::Sprite3d;
 
+mod billboard;
+mod render;
+mod sprite;
+mod text;
+
+// TODO: rename
 pub struct BillboardPlugin;
 
 impl Plugin for BillboardPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        app.add_plugins(MaterialPlugin::<BillboardMaterial>::default());
-
-        app.init_resource::<ArrayTextureQueue>();
-
-        app.register_type::<Sprite3d>();
-        app.register_type::<BillboardMaterial>();
-        app.register_type::<ArrayTextureQueue>();
-
-        app.add_systems(Update, (queue_array_texture, process_array_texture).chain());
-        app.add_systems(Update, add_mesh_and_material);
-        app.add_systems(Update, extract_forward);
+        app.add_plugins(sprite::plugin);
+        app.add_plugins(billboard::plugin);
+        app.add_plugins(text::plugin);
+        app.add_plugins(render::plugin);
     }
 }
+// TODO: This needs to be reworked for Text3d
+fn on_add_3d(mut world: DeferredWorld, context: HookContext) {
+    let mesh = world
+        .resource_mut::<Assets<Mesh>>()
+        .add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh());
 
-#[derive(Asset, AsBindGroup, Debug, Clone, Reflect)]
-#[bind_group_data(BillboardMaterialKey)]
-pub struct BillboardMaterial {
-    #[texture(0, dimension = "2d_array")]
-    #[sampler(1)]
-    #[dependency]
-    image: Handle<Image>,
-    #[uniform(2)]
-    forward: Vec3,
-}
+    let image = world.get::<Sprite3d>(context.entity).unwrap().image.clone();
+    let material = world.resource_mut::<Assets<BillboardMaterial>>().add(image);
 
-impl From<Handle<Image>> for BillboardMaterial {
-    fn from(image: Handle<Image>) -> Self {
-        Self {
-            image,
-            forward: Vec3::Z,
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub struct BillboardMaterialKey;
-
-impl From<&BillboardMaterial> for BillboardMaterialKey {
-    fn from(_material: &BillboardMaterial) -> Self {
-        Self
-    }
-}
-
-impl Material for BillboardMaterial {
-    fn vertex_shader() -> ShaderRef {
-        BILLBOARD_SHADER_ASSET_PATH.into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        BILLBOARD_SHADER_ASSET_PATH.into()
-    }
-
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Blend
-    }
-
-    fn specialize(
-        _pipeline: &MaterialPipeline<Self>,
-        descriptor: &mut RenderPipelineDescriptor,
-        layout: &MeshVertexBufferLayoutRef,
-        _key: MaterialPipelineKey<Self>,
-    ) -> Result<(), SpecializedMeshPipelineError> {
-        let vertex_layout = layout.0.get_layout(&[
-            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
-            Mesh::ATTRIBUTE_UV_0.at_shader_location(1),
-        ])?;
-
-        descriptor.vertex.buffers = vec![vertex_layout];
-        Ok(())
-    }
-}
-
-/// Add this to an entity
-#[derive(Debug, Component, Reflect)]
-#[reflect(Component)]
-pub struct Sprite3d {
-    pub image: Handle<Image>,
-    pub layers: u32,
-}
-
-// On Sprite3d insertion
-#[derive(Debug, Default, Resource, Reflect)]
-#[reflect(Resource)]
-struct ArrayTextureQueue {
-    queue: Vec<(AssetId<Image>, u32)>,
-}
-
-// TODO: Consider an observer instead
-// This reinserts stuff if it was already processsed -> fix
-fn queue_array_texture(
-    mut queue: ResMut<ArrayTextureQueue>,
-    sprite3d: Query<&Sprite3d, Added<Sprite3d>>,
-) {
-    for sprite3d in &sprite3d {
-        queue.queue.push((sprite3d.image.id(), sprite3d.layers));
-    }
-}
-
-// For every image we need to reinterpret it as a array texture
-fn process_array_texture(
-    mut queue: ResMut<ArrayTextureQueue>,
-    mut images: ResMut<Assets<Image>>,
-    asset_server: Res<AssetServer>,
-) {
-    let mut remaining_queue = vec![];
-
-    queue.queue.iter().for_each(|(image, layers)| {
-        if asset_server.load_state(*image).is_loaded() {
-            let image = images.get_mut(*image).unwrap();
-            image.reinterpret_stacked_2d_as_array(*layers);
-        } else {
-            remaining_queue.push((*image, *layers));
-        }
-    });
-
-    queue.queue = remaining_queue;
-}
-
-// Adding or changing a Sprite3d component will automatically add Mesh and Material
-fn add_mesh_and_material(
-    mut commands: Commands,
-    sprite3d: Query<(Entity, &Sprite3d), Changed<Sprite3d>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<BillboardMaterial>>,
-) {
-    for (entity, sprite3d) in &sprite3d {
-        commands.entity(entity).insert((
-            Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
-            MeshMaterial3d(materials.add(sprite3d.image.clone())),
-        ));
-    }
-}
-
-// We need the entity forward vector in the fragment shader to decide which layer to sample
-fn extract_forward(
-    sprite3d: Query<
-        (&GlobalTransform, &MeshMaterial3d<BillboardMaterial>),
-        (With<Sprite3d>, Changed<GlobalTransform>),
-    >,
-    mut materials: ResMut<Assets<BillboardMaterial>>,
-) {
-    for (transform, material) in &sprite3d {
-        let material = materials.get_mut(material).unwrap();
-        material.forward = transform.forward().as_vec3();
-    }
+    world
+        .commands()
+        .entity(context.entity)
+        .insert((Mesh3d(mesh), MeshMaterial3d(material)));
 }
