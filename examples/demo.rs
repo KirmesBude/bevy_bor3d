@@ -4,7 +4,7 @@
 use std::f32::consts::PI;
 
 use bevy::{prelude::*, render::camera::Viewport, window::WindowResized};
-use bevy_bor3d::{BillboardMaterial, BillboardPlugin};
+use bevy_bor3d::{BillboardPlugin, Sprite3d};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use ops::{cos, sin};
 
@@ -25,7 +25,6 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut cube_materials: ResMut<Assets<StandardMaterial>>,
-    mut sprite3d_materials: ResMut<Assets<BillboardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
     // Cameras and their dedicated UI
@@ -73,10 +72,10 @@ fn setup(
     // 3d Sprite
     commands.spawn((
         Name::new("Sprite3d"),
-        Mesh3d(meshes.add(Plane3d::new(Vec3::Z, Vec2::new(25.0, 25.0)).mesh())),
-        MeshMaterial3d(sprite3d_materials.add(BillboardMaterial {
-            image: asset_server.load("sprites/bossa1.png"),
-        })),
+        Sprite3d {
+            image: asset_server.load("sprites/array.png"),
+            layers: 8,
+        },
         Transform::from_translation(Vec3::new(65.0, 5.0, 5.0)),
         Spinning::default(),
         Shuffling::default(),

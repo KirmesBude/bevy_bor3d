@@ -48,12 +48,12 @@ struct FragmentInput {
      @location(0) uv: vec2<f32>
 };
 
-@group(2) @binding(0) var texture: texture_2d<f32>;
+@group(2) @binding(0) var texture: texture_2d_array<f32>;
 @group(2) @binding(1) var texture_sampler: sampler;
 
 @fragment
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
-    var color = textureSample(texture, texture_sampler, in.uv);
+    var color = textureSample(texture, texture_sampler, in.uv, 2);
 
     return color;
 }
