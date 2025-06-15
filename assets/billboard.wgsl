@@ -1,5 +1,6 @@
 #import bevy_pbr::{
     mesh_view_bindings::view,
+    mesh_view_bindings::globals,
     mesh_functions::get_world_from_local
 }
 
@@ -7,11 +8,13 @@ struct Vertex {
     @builtin(instance_index) instance_index: u32,
     @location(0) position: vec3<f32>,
     @location(1) uv: vec2<f32>,
+    @location(2) normal: vec3<f32>,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) uv: vec2<f32>
+    @location(0) uv: vec2<f32>,
+    @location(1) normal: vec3<f32>,
 };
 
 @vertex
@@ -40,12 +43,14 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 
     out.uv = vertex.uv;
     out.clip_position = position;
+    out.normal = vertex.normal;
 
     return out;
 }
 
 struct FragmentInput {
-     @location(0) uv: vec2<f32>
+     @location(0) uv: vec2<f32>,
+     @location(1) normal: vec3<f32>,
 };
 
 @group(2) @binding(0) var texture: texture_2d_array<f32>;
@@ -53,7 +58,13 @@ struct FragmentInput {
 
 @fragment
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
-    var color = textureSample(texture, texture_sampler, in.uv, 2);
+    let world_from_view = view.world_from_view;
+    let cam_position = vec3<f32>(world_from_view[3].xyz);
+    let angle = atan2(cam_position.y, cam_position.x) - atan2(in.normal.y, in.normal.x);
+    
+    let layer = u32(globals.time % 8.0);
+
+    var color = textureSample(texture, texture_sampler, in.uv, layer);
 
     return color;
 }
