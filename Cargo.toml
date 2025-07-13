@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 #TODO: Remove bevy_pbr if I use my own mesh and uniform
 bevy = "0.16.1"
+bytemuck = "1.7"
 
 [dev-dependencies]
 bevy = "0.16.1"
