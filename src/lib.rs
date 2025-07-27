@@ -27,6 +27,10 @@ impl Plugin for BillboardPlugin {
         app.add_plugins(text::plugin);
         app.add_plugins(render::plugin);
     }
+
+    fn finish(&self, app: &mut bevy::app::App) {
+        app.add_plugins(render::finish);
+    }
 }
 // TODO: This needs to be reworked for Text3d
 fn on_add_3d(mut world: DeferredWorld, context: HookContext) {

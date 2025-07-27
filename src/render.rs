@@ -20,14 +20,16 @@ use bevy::{
             RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases,
         },
         render_resource::{
-            AsBindGroup, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
-            DepthStencilState, FragmentState, IndexFormat, MultisampleState, PipelineCache,
-            PrimitiveState, RawBufferVec, RenderPipelineDescriptor, ShaderRef,
+            AsBindGroup, BindGroupLayout, BindGroupLayoutEntries, BlendState, BufferUsages,
+            ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, FragmentState,
+            IndexFormat, MultisampleState, PipelineCache, PrimitiveState, RawBufferVec,
+            RenderPipelineDescriptor, SamplerBindingType, ShaderRef, ShaderStages,
             SpecializedMeshPipelineError, SpecializedRenderPipeline, SpecializedRenderPipelines,
-            TextureFormat, VertexAttribute, VertexState, VertexStepMode,
+            TextureFormat, TextureSampleType, VertexState, VertexStepMode,
+            binding_types::{sampler, texture_2d, uniform_buffer},
         },
         renderer::{RenderDevice, RenderQueue},
-        view::{self, ExtractedView, RenderVisibleEntities, VisibilityClass},
+        view::{self, ExtractedView, RenderVisibleEntities, ViewUniform, VisibilityClass},
     },
 };
 use bytemuck::{Pod, Zeroable};
@@ -46,7 +48,9 @@ pub(super) fn plugin(app: &mut App) {
 
     // Custom phase item
     app.add_plugins(ExtractComponentPlugin::<BillboardPhaseItem>::default());
+}
 
+pub(super) fn finish(app: &mut App) {
     app.get_sub_app_mut(RenderApp)
         .unwrap()
         .init_resource::<BillboardPhasePipeline>()
@@ -140,16 +144,41 @@ pub struct BillboardPhaseItem;
 
 #[derive(Resource)]
 struct BillboardPhasePipeline {
+    pub view_layout: BindGroupLayout,
+    pub image_layout: BindGroupLayout,
     shader: Handle<Shader>,
 }
 
 impl FromWorld for BillboardPhasePipeline {
     fn from_world(world: &mut World) -> Self {
+        let render_device = world.resource::<RenderDevice>();
+        let view_layout = render_device.create_bind_group_layout(
+            "billboard_view_layout",
+            &BindGroupLayoutEntries::single(
+                ShaderStages::VERTEX_FRAGMENT,
+                uniform_buffer::<ViewUniform>(true),
+            ),
+        );
+
+        let image_layout = render_device.create_bind_group_layout(
+            "billboard_image_layout",
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::FRAGMENT,
+                (
+                    texture_2d(TextureSampleType::Float { filterable: true }),
+                    sampler(SamplerBindingType::Filtering),
+                ),
+            ),
+        );
+        // TODO: Forward uniform?
+
         // Load and compile the shader in the background.
         let asset_server = world.resource::<AssetServer>();
 
         BillboardPhasePipeline {
-            shader: asset_server.load("billboard.wgsl"),
+            view_layout,
+            image_layout,
+            shader: asset_server.load("billboard.wgsl"), //TODO: embedded asset
         }
     }
 }
@@ -197,9 +226,8 @@ where
             IndexFormat::Uint32,
         );
 
-        // TODO: Quad
         // Draw one quad (3 vertices).
-        pass.draw_indexed(0..3, 0, 0..1);
+        pass.draw_indexed(0..4, 0, 0..1);
 
         RenderCommandResult::Success
     }
@@ -211,7 +239,7 @@ struct BillboardPhaseItemBuffers {
     ///
     /// This is a [`RawBufferVec`] because that's the simplest and fastest type
     /// of GPU buffer, and [`Vertex`] objects are simple.
-    vertices: RawBufferVec<Vertex>,
+    vertices: RawBufferVec<BillboardVertex>,
 
     /// The indices of the single triangle.
     ///
@@ -229,10 +257,10 @@ impl FromWorld for BillboardPhaseItemBuffers {
         let mut vbo = RawBufferVec::new(BufferUsages::VERTEX);
         let mut ibo = RawBufferVec::new(BufferUsages::INDEX);
 
-        for vertex in &VERTICES {
-            vbo.push(*vertex);
+        for vertex in &QUAD_VERTEX_POSITIONS {
+            vbo.push(BillboardVertex::new(vertex.extend(0.0)));
         }
-        for index in 0..3 {
+        for index in QUAD_INDICES {
             ibo.push(index);
         }
 
@@ -250,37 +278,33 @@ impl FromWorld for BillboardPhaseItemBuffers {
 /// The CPU-side structure that describes a single vertex of the triangle.
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
-struct Vertex {
+struct BillboardVertex {
     /// The 3D position of the triangle vertex.
-    position: Vec3,
-    /// Padding.
-    pad0: u32,
-    /// The color of the triangle vertex.
-    color: Vec3,
-    /// Padding.
-    pad1: u32,
+    position: [f32; 3],
+    // TODO: uv
+    uv: [f32; 2],
 }
 
-impl Vertex {
+impl BillboardVertex {
     /// Creates a new vertex structure.
-    const fn new(position: Vec3, color: Vec3) -> Vertex {
-        Vertex {
-            position,
-            color,
-            pad0: 0,
-            pad1: 0,
+    const fn new(position: Vec3) -> BillboardVertex {
+        BillboardVertex {
+            position: [position.x, position.y, position.z],
+            uv: [0.0, 0.0],
         }
     }
 }
 
 type DrawBillboardPhaseItemCommands = (SetItemPipeline, DrawBillboardPhaseItem);
 
-// TODO: Quad
-static VERTICES: [Vertex; 3] = [
-    Vertex::new(vec3(-0.866, -0.5, 0.5), vec3(1.0, 0.0, 0.0)),
-    Vertex::new(vec3(0.866, -0.5, 0.5), vec3(0.0, 1.0, 0.0)),
-    Vertex::new(vec3(0.0, 1.0, 0.5), vec3(0.0, 0.0, 1.0)),
+const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
+    Vec2::new(-0.5, -0.5),
+    Vec2::new(0.5, -0.5),
+    Vec2::new(0.5, 0.5),
+    Vec2::new(-0.5, 0.5),
 ];
+
+const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
 
 fn prepare_billboard_phase_item_buffers(mut commands: Commands) {
     commands.init_resource::<BillboardPhaseItemBuffers>();
@@ -331,7 +355,6 @@ fn queue_billboard_phase_item(
                 continue;
             };
 
-            // TODO: Add the custom render item
             let distance = rangefinder.distance_translation(&mesh_instance.translation);
             let (_vertex_slab, index_slab) =
                 mesh_allocator.mesh_slabs(&mesh_instance.mesh_asset_id);
@@ -352,42 +375,37 @@ impl SpecializedRenderPipeline for BillboardPhasePipeline {
     type Key = Msaa;
 
     fn specialize(&self, msaa: Self::Key) -> RenderPipelineDescriptor {
+        let vertex_layout = VertexBufferLayout::from_vertex_formats(
+            VertexStepMode::Vertex,
+            vec![
+                // position
+                VertexFormat::Float32x3,
+                // uv
+                VertexFormat::Float32x2,
+            ],
+        );
+
         RenderPipelineDescriptor {
-            label: Some("custom render pipeline".into()),
-            layout: vec![],
+            label: Some("billboard_render_pipeline".into()),
+            layout: vec![self.view_layout.clone(), self.image_layout.clone()],
             push_constant_ranges: vec![],
             vertex: VertexState {
                 shader: self.shader.clone(),
                 shader_defs: vec![],
                 entry_point: "vertex".into(),
-                buffers: vec![VertexBufferLayout {
-                    array_stride: size_of::<Vertex>() as u64,
-                    step_mode: VertexStepMode::Vertex,
-                    // This needs to match the layout of [`Vertex`].
-                    attributes: vec![
-                        VertexAttribute {
-                            format: VertexFormat::Float32x3,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x3,
-                            offset: 16,
-                            shader_location: 1,
-                        },
-                    ],
-                }],
+                buffers: vec![vertex_layout],
             },
             fragment: Some(FragmentState {
                 shader: self.shader.clone(),
                 shader_defs: vec![],
                 entry_point: "fragment".into(),
                 targets: vec![Some(ColorTargetState {
+                    // TODO
                     // Ordinarily, you'd want to check whether the view has the
                     // HDR format and substitute the appropriate texture format
                     // here, but we omit that for simplicity.
                     format: TextureFormat::bevy_default(),
-                    blend: None,
+                    blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
