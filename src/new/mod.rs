@@ -33,9 +33,9 @@ use bytemuck::{Pod, Zeroable};
 pub const BILLBOARD_SHADER_HANDLE: Handle<Shader> =
     weak_handle!("6b8a508f-fb80-479e-bcf3-c3f565c3ed5b");
 
-pub struct BillboardPlugin;
+pub struct NewBillboardPlugin;
 
-impl Plugin for BillboardPlugin {
+impl Plugin for NewBillboardPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         load_internal_asset!(
             app,
@@ -217,7 +217,7 @@ impl BillboardVertex {
     const fn new(position: Vec3) -> BillboardVertex {
         BillboardVertex {
             position: [position.x, position.y, position.z],
-            uv: [0.0, 0.0],
+            uv: [0.0, 1.0],
         }
     }
 }

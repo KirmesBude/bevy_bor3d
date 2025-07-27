@@ -4,7 +4,7 @@
 use std::f32::consts::PI;
 
 use bevy::{prelude::*, render::camera::Viewport, window::WindowResized};
-use bevy_bor3d::{Billboard, BillboardPlugin, Sprite3d};
+use bevy_bor3d::{Billboard, BillboardPhaseItem, BillboardPlugin, Sprite3d};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use ops::{cos, sin};
 
@@ -83,6 +83,12 @@ fn setup(
         Transform::from_translation(Vec3::new(65.0, 5.0, 5.0)),
         Spinning::default(),
         Shuffling::default(),
+    ));
+
+    commands.spawn((
+        Name::new("NewSprite3d"),
+        BillboardPhaseItem,
+        Transform::default(),
     ));
 }
 

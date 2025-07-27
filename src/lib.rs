@@ -11,6 +11,7 @@ use bevy::{
 pub use crate::billboard::Billboard;
 use crate::render::BillboardMaterial;
 pub use crate::sprite::Sprite3d;
+pub use crate::new::BillboardPhaseItem;
 
 mod billboard;
 mod new;
@@ -27,7 +28,7 @@ impl Plugin for BillboardPlugin {
         app.add_plugins(billboard::plugin);
         app.add_plugins(text::plugin);
         app.add_plugins(render::plugin);
-        app.add_plugins(new::BillboardPlugin);
+        app.add_plugins(new::NewBillboardPlugin);
     }
 }
 
