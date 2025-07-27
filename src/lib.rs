@@ -13,6 +13,7 @@ use crate::render::BillboardMaterial;
 pub use crate::sprite::Sprite3d;
 
 mod billboard;
+mod new;
 mod render;
 mod sprite;
 mod text;
@@ -26,12 +27,10 @@ impl Plugin for BillboardPlugin {
         app.add_plugins(billboard::plugin);
         app.add_plugins(text::plugin);
         app.add_plugins(render::plugin);
-    }
-
-    fn finish(&self, app: &mut bevy::app::App) {
-        app.add_plugins(render::finish);
+        app.add_plugins(new::BillboardPlugin);
     }
 }
+
 // TODO: This needs to be reworked for Text3d
 fn on_add_3d(mut world: DeferredWorld, context: HookContext) {
     let mesh = world
