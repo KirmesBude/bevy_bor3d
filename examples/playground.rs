@@ -91,8 +91,8 @@ where
             IndexFormat::Uint32,
         );
 
-        // Draw one triangle (3 vertices).
-        pass.draw_indexed(0..3, 0, 0..1);
+        // Draw one quad (4 vertices?).
+        pass.draw_indexed(0..6, 0, 0..1);
 
         RenderCommandResult::Success
     }
@@ -147,11 +147,20 @@ impl Vertex {
 /// the render phase.
 type DrawCustomPhaseItemCommands = (SetItemPipeline, DrawCustomPhaseItem);
 
-/// A single triangle's worth of vertices, for demonstration purposes.
-static VERTICES: [Vertex; 3] = [
-    Vertex::new(vec3(-0.866, -0.5, 0.5), vec3(1.0, 0.0, 0.0)),
-    Vertex::new(vec3(0.866, -0.5, 0.5), vec3(0.0, 1.0, 0.0)),
-    Vertex::new(vec3(0.0, 1.0, 0.5), vec3(0.0, 0.0, 1.0)),
+const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
+    vec2(-0.5, -0.5),
+    vec2(0.5, -0.5),
+    vec2(0.5, 0.5),
+    vec2(-0.5, 0.5),
+];
+
+const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
+
+const QUAD_VERTEX_COLOR: [Vec3; 4] = [
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0),
+    vec3(0.5, 0.5, 0.5),
 ];
 
 /// The entry point.
@@ -333,10 +342,10 @@ impl FromWorld for CustomPhaseItemBuffers {
         let mut vbo = RawBufferVec::new(BufferUsages::VERTEX);
         let mut ibo = RawBufferVec::new(BufferUsages::INDEX);
 
-        for vertex in &VERTICES {
-            vbo.push(*vertex);
+        for (position, color) in QUAD_VERTEX_POSITIONS.iter().zip(QUAD_VERTEX_COLOR) {
+            vbo.push(Vertex::new(position.extend(0.0), color));
         }
-        for index in 0..3 {
+        for index in QUAD_INDICES {
             ibo.push(index);
         }
 
