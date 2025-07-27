@@ -2,6 +2,9 @@
 //
 // This shader goes with the `custom_phase_item` example. It demonstrates how to
 // enqueue custom rendering logic in a `RenderPhase`.
+#import bevy_render::view::View
+
+@group(0) @binding(0) var<uniform> view: View;
 
 // The GPU-side vertex structure.
 struct Vertex {
@@ -34,8 +37,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     return vertex_output;
 }
 
-@group(0) @binding(0) var texture: texture_2d<f32>;
-@group(0) @binding(1) var texture_sampler: sampler;
+@group(1) @binding(0) var texture: texture_2d<f32>;
+@group(1) @binding(1) var texture_sampler: sampler;
 
 // The fragment shader entry point.
 @fragment

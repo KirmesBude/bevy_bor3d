@@ -25,11 +25,14 @@ use bevy::{
             RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
             SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
             TextureSampleType, VertexState,
-            binding_types::{sampler, texture_2d},
+            binding_types::{sampler, texture_2d, uniform_buffer},
         },
         renderer::{RenderDevice, RenderQueue},
         texture::GpuImage,
-        view::{self, ExtractedView, RenderVisibleEntities, VisibilityClass},
+        view::{
+            self, ExtractedView, RenderVisibleEntities, ViewUniform, ViewUniformOffset,
+            ViewUniforms, VisibilityClass,
+        },
     },
 };
 
@@ -54,6 +57,7 @@ struct CustomRenderedEntity {
 /// This is loaded at app creation time.
 #[derive(Resource)]
 struct CustomPhasePipeline {
+    view_layout: BindGroupLayout,
     image_layout: BindGroupLayout,
     shader: Handle<Shader>,
 }
@@ -61,6 +65,15 @@ struct CustomPhasePipeline {
 impl FromWorld for CustomPhasePipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
+
+        let view_layout = render_device.create_bind_group_layout(
+            "custom_view_layout",
+            &BindGroupLayoutEntries::single(
+                ShaderStages::VERTEX_FRAGMENT,
+                uniform_buffer::<ViewUniform>(true),
+            ),
+        );
+
         let image_layout = render_device.create_bind_group_layout(
             "custom_image_layout",
             &BindGroupLayoutEntries::sequential(
@@ -77,9 +90,64 @@ impl FromWorld for CustomPhasePipeline {
         let shader = asset_server.load("shaders/custom_phase_item.wgsl");
 
         Self {
+            view_layout,
             image_layout,
             shader,
         }
+    }
+}
+
+type DrawCustomPhaseItemRenderCommand = (
+    SetItemPipeline,
+    SetCustomViewBindGroup<0>,
+    SetCustomImageBindGroup<1>,
+    DrawCustomPhaseItem,
+);
+
+struct SetCustomViewBindGroup<const I: usize>;
+impl<const I: usize, P: PhaseItem> RenderCommand<P> for SetCustomViewBindGroup<I> {
+    type ViewQuery = (Read<ViewUniformOffset>, Read<ViewBindGroup>);
+    type ItemQuery = ();
+    type Param = ();
+
+    #[inline]
+    fn render<'w>(
+        _item: &P,
+        (view_uniform, view_bind_group): ROQueryItem<'w, Self::ViewQuery>,
+        _entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _param: SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) -> RenderCommandResult {
+        pass.set_bind_group(I, &view_bind_group.value, &[view_uniform.offset]);
+        RenderCommandResult::Success
+    }
+}
+
+struct SetCustomImageBindGroup<const I: usize>;
+impl<const I: usize, P: PhaseItem> RenderCommand<P> for SetCustomImageBindGroup<I> {
+    type ViewQuery = ();
+    type ItemQuery = Read<CustomRenderedEntity>;
+    type Param = SRes<ImageBindGroups>;
+
+    #[inline]
+    fn render<'w>(
+        _item: &P,
+        _view: ROQueryItem<'w, Self::ViewQuery>,
+        entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        param: SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) -> RenderCommandResult {
+        let Some(entity) = entity else {
+            return RenderCommandResult::Skip;
+        };
+
+        let image_bind_groups = param.into_inner();
+        let Some(bind_group) = image_bind_groups.values.get(&entity.image.id()) else {
+            return RenderCommandResult::Skip;
+        };
+        pass.set_bind_group(1, bind_group, &[]);
+
+        RenderCommandResult::Success
     }
 }
 
@@ -91,21 +159,21 @@ impl<P> RenderCommand<P> for DrawCustomPhaseItem
 where
     P: PhaseItem,
 {
-    type Param = (SRes<CustomPhaseItemBuffers>, SRes<ImageBindGroups>);
+    type Param = SRes<CustomPhaseItemBuffers>;
 
     type ViewQuery = ();
 
-    type ItemQuery = Read<CustomRenderedEntity>;
+    type ItemQuery = ();
 
     fn render<'w>(
-        _: &P,
-        _: ROQueryItem<'w, Self::ViewQuery>,
-        item_query: Option<ROQueryItem<'w, Self::ItemQuery>>,
-        (custom_phase_item_buffers, image_bind_groups): SystemParamItem<'w, '_, Self::Param>,
+        _item: &P,
+        _view: ROQueryItem<'w, Self::ViewQuery>,
+        _entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        param: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         // Borrow check workaround.
-        let custom_phase_item_buffers = custom_phase_item_buffers.into_inner();
+        let custom_phase_item_buffers = param.into_inner();
 
         // Tell the GPU where the indices are.
         pass.set_index_buffer(
@@ -117,17 +185,6 @@ where
             0,
             IndexFormat::Uint32,
         );
-
-        // TODO: Set bind group
-        let Some(entity) = item_query else {
-            return RenderCommandResult::Skip;
-        };
-
-        let image_bind_groups = image_bind_groups.into_inner();
-        let Some(bind_group) = image_bind_groups.values.get(&entity.image.id()) else {
-            return RenderCommandResult::Skip;
-        };
-        pass.set_bind_group(0, bind_group, &[]);
 
         // Draw one quad (4 vertices?).
         pass.draw_indexed(0..6, 0, 0..1);
@@ -148,10 +205,6 @@ struct CustomPhaseItemBuffers {
     /// size and alignment.
     indices: RawBufferVec<u32>,
 }
-
-/// The custom draw commands that Bevy executes for each entity we enqueue into
-/// the render phase.
-type DrawCustomPhaseItemCommands = (SetItemPipeline, DrawCustomPhaseItem);
 
 const QUAD_INDICES: [u32; 6] = [2, 0, 1, 1, 3, 2];
 
@@ -176,8 +229,9 @@ impl Plugin for CustomPhaseItemPlugin {
                 .add_systems(
                     Render,
                     (
+                        prepare_custom_phase_item_view_bind_group,
                         prepare_custom_phase_item_buffers,
-                        prepeare_custom_phase_item_image_bind_group,
+                        prepare_custom_phase_item_image_bind_group,
                     )
                         .in_set(RenderSet::Prepare),
                 )
@@ -191,7 +245,7 @@ impl Plugin for CustomPhaseItemPlugin {
                 .init_resource::<CustomPhasePipeline>()
                 .init_resource::<SpecializedRenderPipelines<CustomPhasePipeline>>()
                 .init_resource::<ImageBindGroups>()
-                .add_render_command::<Transparent3d, DrawCustomPhaseItemCommands>();
+                .add_render_command::<Transparent3d, DrawCustomPhaseItemRenderCommand>();
         }
     }
 }
@@ -228,12 +282,41 @@ fn prepare_custom_phase_item_buffers(mut commands: Commands) {
     commands.init_resource::<CustomPhaseItemBuffers>();
 }
 
+#[derive(Component)]
+pub struct ViewBindGroup {
+    value: BindGroup,
+}
+
+fn prepare_custom_phase_item_view_bind_group(
+    mut commands: Commands,
+    view_uniforms: Res<ViewUniforms>,
+    views: Query<Entity, With<ExtractedView>>,
+    custom_phase_pipeline: Res<CustomPhasePipeline>,
+    render_device: Res<RenderDevice>,
+) {
+    let Some(view_binding) = view_uniforms.uniforms.binding() else {
+        return;
+    };
+
+    for entity in &views {
+        let view_bind_group = render_device.create_bind_group(
+            "custom_view_bind_group",
+            &custom_phase_pipeline.view_layout,
+            &BindGroupEntries::single(view_binding.clone()),
+        );
+
+        commands.entity(entity).insert(ViewBindGroup {
+            value: view_bind_group,
+        });
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct ImageBindGroups {
     values: HashMap<AssetId<Image>, BindGroup>,
 }
 
-fn prepeare_custom_phase_item_image_bind_group(
+fn prepare_custom_phase_item_image_bind_group(
     mut image_bind_groups: ResMut<ImageBindGroups>,
     custom_phase_items: Query<&CustomRenderedEntity>,
     gpu_images: Res<RenderAssets<GpuImage>>,
@@ -272,7 +355,7 @@ fn queue_custom_phase_item(
 ) {
     let draw_custom_phase_item = transparent_draw_functions
         .read()
-        .id::<DrawCustomPhaseItemCommands>();
+        .id::<DrawCustomPhaseItemRenderCommand>();
 
     // Render phases are per-view, so we need to iterate over all views so that
     // the entity appears in them. (In this example, we have only one view, but
@@ -321,7 +404,7 @@ impl SpecializedRenderPipeline for CustomPhasePipeline {
     fn specialize(&self, msaa: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("custom render pipeline".into()),
-            layout: vec![self.image_layout.clone()],
+            layout: vec![self.view_layout.clone(), self.image_layout.clone()],
             push_constant_ranges: vec![],
             vertex: VertexState {
                 shader: self.shader.clone(),
