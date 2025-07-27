@@ -9,9 +9,9 @@ use bevy::{
 };
 
 pub use crate::billboard::Billboard;
+pub use crate::new::BillboardPhaseItem;
 use crate::render::BillboardMaterial;
 pub use crate::sprite::Sprite3d;
-pub use crate::new::BillboardPhaseItem;
 
 mod billboard;
 mod new;
