@@ -29,8 +29,12 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     return vertex_output;
 }
 
+@group(0) @binding(0) var texture: texture_2d<f32>;
+@group(0) @binding(1) var texture_sampler: sampler;
+
 // The fragment shader entry point.
 @fragment
 fn fragment(vertex_output: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4(vertex_output.color, 1.0);
+    var color = textureSample(texture, texture_sampler, vec2<f32>(0.0,0.0));
+    return color;
 }

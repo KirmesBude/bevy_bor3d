@@ -2,25 +2,34 @@ use bevy::{
     core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, Transparent3d},
     ecs::{
         query::ROQueryItem,
-        system::{SystemParamItem, lifetimeless::SRes},
+        system::{
+            SystemParamItem,
+            lifetimeless::{Read, SRes},
+        },
     },
+    platform::collections::{HashMap, hash_map::Entry},
     prelude::*,
     render::{
         Render, RenderApp, RenderSet,
         extract_component::{ExtractComponent, ExtractComponentPlugin},
         primitives::Aabb,
+        render_asset::RenderAssets,
         render_phase::{
             AddRenderCommand, DrawFunctions, PhaseItem, PhaseItemExtraIndex, RenderCommand,
             RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases,
         },
         render_resource::{
+            AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
             BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
             FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState,
-            RawBufferVec, RenderPipelineDescriptor, SpecializedRenderPipeline,
-            SpecializedRenderPipelines, TextureFormat, VertexAttribute, VertexBufferLayout,
-            VertexFormat, VertexState, VertexStepMode,
+            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
+            SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
+            TextureSampleType, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
+            VertexStepMode,
+            binding_types::{sampler, texture_2d},
         },
         renderer::{RenderDevice, RenderQueue},
+        texture::GpuImage,
         view::{self, ExtractedView, RenderVisibleEntities, VisibilityClass},
     },
 };
@@ -33,17 +42,47 @@ use bytemuck::{Pod, Zeroable};
 /// tell Bevy that this object should be pulled into the render world. Also note
 /// the `on_add` hook, which is needed to tell Bevy's `check_visibility` system
 /// that entities with this component need to be examined for visibility.
-#[derive(Clone, Component, ExtractComponent)]
+#[derive(Clone, Component, ExtractComponent, AsBindGroup)]
 #[require(VisibilityClass)]
 #[component(on_add = view::add_visibility_class::<CustomRenderedEntity>)]
-struct CustomRenderedEntity;
+struct CustomRenderedEntity {
+    #[texture(0)]
+    #[sampler(1)]
+    image: Handle<Image>,
+}
 
 /// Holds a reference to our shader.
 ///
 /// This is loaded at app creation time.
 #[derive(Resource)]
 struct CustomPhasePipeline {
+    image_layout: BindGroupLayout,
     shader: Handle<Shader>,
+}
+
+impl FromWorld for CustomPhasePipeline {
+    fn from_world(world: &mut World) -> Self {
+        let render_device = world.resource::<RenderDevice>();
+        let image_layout = render_device.create_bind_group_layout(
+            "custom_image_layout",
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::FRAGMENT,
+                (
+                    texture_2d(TextureSampleType::Float { filterable: true }),
+                    sampler(SamplerBindingType::Filtering),
+                ),
+            ),
+        );
+
+        // Load and compile the shader in the background.
+        let asset_server = world.resource::<AssetServer>();
+        let shader = asset_server.load("shaders/custom_phase_item.wgsl");
+
+        Self {
+            image_layout,
+            shader,
+        }
+    }
 }
 
 /// A [`RenderCommand`] that binds the vertex and index buffers and issues the
@@ -54,17 +93,17 @@ impl<P> RenderCommand<P> for DrawCustomPhaseItem
 where
     P: PhaseItem,
 {
-    type Param = SRes<CustomPhaseItemBuffers>;
+    type Param = (SRes<CustomPhaseItemBuffers>, SRes<ImageBindGroups>);
 
     type ViewQuery = ();
 
-    type ItemQuery = ();
+    type ItemQuery = Read<CustomRenderedEntity>;
 
     fn render<'w>(
         _: &P,
         _: ROQueryItem<'w, Self::ViewQuery>,
-        _: Option<ROQueryItem<'w, Self::ItemQuery>>,
-        custom_phase_item_buffers: SystemParamItem<'w, '_, Self::Param>,
+        item_query: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        (custom_phase_item_buffers, image_bind_groups): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         // Borrow check workaround.
@@ -90,6 +129,17 @@ where
             0,
             IndexFormat::Uint32,
         );
+
+        // TODO: Set bind group
+        let Some(entity) = item_query else {
+            return RenderCommandResult::Skip;
+        };
+
+        let image_bind_groups = image_bind_groups.into_inner();
+        let Some(bind_group) = image_bind_groups.values.get(&entity.image.id()) else {
+            return RenderCommandResult::Skip;
+        };
+        pass.set_bind_group(0, bind_group, &[]);
 
         // Draw one quad (4 vertices?).
         pass.draw_indexed(0..6, 0, 0..1);
@@ -167,26 +217,45 @@ const QUAD_VERTEX_COLOR: [Vec3; 4] = [
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        .add_plugins(ExtractComponentPlugin::<CustomRenderedEntity>::default())
+        .add_plugins(CustomPhaseItemPlugin)
         .add_systems(Startup, setup);
-
-    // We make sure to add these to the render app, not the main app.
-    app.get_sub_app_mut(RenderApp)
-        .unwrap()
-        .init_resource::<CustomPhasePipeline>()
-        .init_resource::<SpecializedRenderPipelines<CustomPhasePipeline>>()
-        .add_render_command::<Transparent3d, DrawCustomPhaseItemCommands>()
-        .add_systems(
-            Render,
-            prepare_custom_phase_item_buffers.in_set(RenderSet::Prepare),
-        )
-        .add_systems(Render, queue_custom_phase_item.in_set(RenderSet::Queue));
 
     app.run();
 }
 
+pub struct CustomPhaseItemPlugin;
+
+impl Plugin for CustomPhaseItemPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(ExtractComponentPlugin::<CustomRenderedEntity>::default());
+
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app
+                .add_systems(
+                    Render,
+                    (
+                        prepare_custom_phase_item_buffers,
+                        prepeare_custom_phase_item_image_bind_group,
+                    )
+                        .in_set(RenderSet::Prepare),
+                )
+                .add_systems(Render, queue_custom_phase_item.in_set(RenderSet::Queue));
+        }
+    }
+
+    fn finish(&self, app: &mut App) {
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app
+                .init_resource::<CustomPhasePipeline>()
+                .init_resource::<SpecializedRenderPipelines<CustomPhasePipeline>>()
+                .init_resource::<ImageBindGroups>()
+                .add_render_command::<Transparent3d, DrawCustomPhaseItemCommands>();
+        }
+    }
+}
+
 /// Spawns the objects in the scene.
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Spawn a single entity that has custom rendering. It'll be extracted into
     // the render world via [`ExtractComponent`].
     commands.spawn((
@@ -197,7 +266,9 @@ fn setup(mut commands: Commands) {
             center: Vec3A::ZERO,
             half_extents: Vec3A::splat(0.5),
         },
-        CustomRenderedEntity,
+        CustomRenderedEntity {
+            image: asset_server.load("sprites/bossa1.png"),
+        },
     ));
 
     // Spawn the camera.
@@ -213,6 +284,38 @@ fn setup(mut commands: Commands) {
 /// and [`RenderQueue`] to exist, and they don't until [`App::run`] is called.
 fn prepare_custom_phase_item_buffers(mut commands: Commands) {
     commands.init_resource::<CustomPhaseItemBuffers>();
+}
+
+#[derive(Resource, Default)]
+pub struct ImageBindGroups {
+    values: HashMap<AssetId<Image>, BindGroup>,
+}
+
+fn prepeare_custom_phase_item_image_bind_group(
+    mut image_bind_groups: ResMut<ImageBindGroups>,
+    custom_phase_items: Query<&CustomRenderedEntity>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
+    custom_phase_pipeline: Res<CustomPhasePipeline>,
+    render_device: Res<RenderDevice>,
+) {
+    for custom_phase_item in &custom_phase_items {
+        let asset_id = custom_phase_item.image.id();
+        if let Some(gpu_image) = gpu_images.get(asset_id) {
+            let bind_group = render_device.create_bind_group(
+                "custom_image_bind_group",
+                &custom_phase_pipeline.image_layout,
+                &BindGroupEntries::sequential((&gpu_image.texture_view, &gpu_image.sampler)),
+            );
+            match image_bind_groups.values.entry(asset_id) {
+                Entry::Occupied(mut oe) => {
+                    oe.insert(bind_group);
+                }
+                Entry::Vacant(ve) => {
+                    ve.insert(bind_group);
+                }
+            }
+        }
+    }
 }
 
 /// A render-world system that enqueues the entity with custom rendering into
@@ -276,7 +379,7 @@ impl SpecializedRenderPipeline for CustomPhasePipeline {
     fn specialize(&self, msaa: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("custom render pipeline".into()),
-            layout: vec![],
+            layout: vec![self.image_layout.clone()],
             push_constant_ranges: vec![],
             vertex: VertexState {
                 shader: self.shader.clone(),
@@ -356,17 +459,6 @@ impl FromWorld for CustomPhaseItemBuffers {
         CustomPhaseItemBuffers {
             vertices: vbo,
             indices: ibo,
-        }
-    }
-}
-
-impl FromWorld for CustomPhasePipeline {
-    fn from_world(world: &mut World) -> Self {
-        // Load and compile the shader in the background.
-        let asset_server = world.resource::<AssetServer>();
-
-        CustomPhasePipeline {
-            shader: asset_server.load("shaders/custom_phase_item.wgsl"),
         }
     }
 }
