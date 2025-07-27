@@ -175,21 +175,12 @@ struct Vertex {
     position: Vec3,
     /// Padding.
     pad0: u32,
-    /// The color of the triangle vertex.
-    color: Vec3,
-    /// Padding.
-    pad1: u32,
 }
 
 impl Vertex {
     /// Creates a new vertex structure.
-    const fn new(position: Vec3, color: Vec3) -> Vertex {
-        Vertex {
-            position,
-            color,
-            pad0: 0,
-            pad1: 0,
-        }
+    const fn new(position: Vec3) -> Vertex {
+        Vertex { position, pad0: 0 }
     }
 }
 
@@ -205,13 +196,6 @@ const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
 ];
 
 const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
-
-const QUAD_VERTEX_COLOR: [Vec3; 4] = [
-    vec3(1.0, 0.0, 0.0),
-    vec3(0.0, 1.0, 0.0),
-    vec3(0.0, 0.0, 1.0),
-    vec3(0.5, 0.5, 0.5),
-];
 
 /// The entry point.
 fn main() {
@@ -389,18 +373,11 @@ impl SpecializedRenderPipeline for CustomPhasePipeline {
                     array_stride: size_of::<Vertex>() as u64,
                     step_mode: VertexStepMode::Vertex,
                     // This needs to match the layout of [`Vertex`].
-                    attributes: vec![
-                        VertexAttribute {
-                            format: VertexFormat::Float32x3,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x3,
-                            offset: 16,
-                            shader_location: 1,
-                        },
-                    ],
+                    attributes: vec![VertexAttribute {
+                        format: VertexFormat::Float32x3,
+                        offset: 0,
+                        shader_location: 0,
+                    }],
                 }],
             },
             fragment: Some(FragmentState {
@@ -445,8 +422,8 @@ impl FromWorld for CustomPhaseItemBuffers {
         let mut vbo = RawBufferVec::new(BufferUsages::VERTEX);
         let mut ibo = RawBufferVec::new(BufferUsages::INDEX);
 
-        for (position, color) in QUAD_VERTEX_POSITIONS.iter().zip(QUAD_VERTEX_COLOR) {
-            vbo.push(Vertex::new(position.extend(0.0), color));
+        for position in &QUAD_VERTEX_POSITIONS {
+            vbo.push(Vertex::new(position.extend(0.0)));
         }
         for index in QUAD_INDICES {
             ibo.push(index);

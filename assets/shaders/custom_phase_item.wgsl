@@ -7,8 +7,6 @@
 struct Vertex {
     // The world-space position of the vertex.
     @location(0) position: vec3<f32>,
-    // The color of the vertex.
-    @location(1) color: vec3<f32>,
 };
 
 // Information passed from the vertex shader to the fragment shader.
@@ -16,7 +14,7 @@ struct VertexOutput {
     // The clip-space position of the vertex.
     @builtin(position) clip_position: vec4<f32>,
     // The color of the vertex.
-    @location(0) color: vec3<f32>,
+    @location(0) uv: vec2<f32>,
 };
 
 // The vertex shader entry point.
@@ -25,7 +23,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     // Use an orthographic projection.
     var vertex_output: VertexOutput;
     vertex_output.clip_position = vec4(vertex.position.xyz, 1.0);
-    vertex_output.color = vertex.color;
+    vertex_output.uv = vec2<f32>(vertex.position.xy);
     return vertex_output;
 }
 
@@ -35,6 +33,6 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 // The fragment shader entry point.
 @fragment
 fn fragment(vertex_output: VertexOutput) -> @location(0) vec4<f32> {
-    var color = textureSample(texture, texture_sampler, vec2<f32>(0.0,0.0));
+    var color = textureSample(texture, texture_sampler, vertex_output.uv);
     return color;
 }
