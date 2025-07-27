@@ -5,8 +5,7 @@
 
 // The GPU-side vertex structure.
 struct Vertex {
-    // The world-space position of the vertex.
-    @location(0) position: vec3<f32>,
+    @builtin(vertex_index) index: u32,
 };
 
 // Information passed from the vertex shader to the fragment shader.
@@ -20,10 +19,18 @@ struct VertexOutput {
 // The vertex shader entry point.
 @vertex
 fn vertex(vertex: Vertex) -> VertexOutput {
-    // Use an orthographic projection.
     var vertex_output: VertexOutput;
-    vertex_output.clip_position = vec4(vertex.position.xyz, 1.0);
-    vertex_output.uv = vec2<f32>(vertex.position.xy);
+
+    let vertex_position = vec3<f32>(
+        f32(vertex.index & 0x1u),
+        f32((vertex.index & 0x2u) >> 1u),
+        0.0
+    );
+
+    // Subtract by 0.5 to bring [0,1] into [-1,1] clip space
+    vertex_output.clip_position = vec4(vertex_position.xyz - vec3<f32>(0.5, 0.5, 0.0), 1.0);
+    // Subtract position from (1,1) to flip ?????
+    vertex_output.uv = vec2<f32>(1.0, 1.0) - vec2<f32>(vertex_position.xy);
     return vertex_output;
 }
 

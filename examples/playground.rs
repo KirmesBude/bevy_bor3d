@@ -24,8 +24,7 @@ use bevy::{
             FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState,
             RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
             SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
-            TextureSampleType, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
-            VertexStepMode,
+            TextureSampleType, VertexState,
             binding_types::{sampler, texture_2d},
         },
         renderer::{RenderDevice, RenderQueue},
@@ -33,7 +32,6 @@ use bevy::{
         view::{self, ExtractedView, RenderVisibleEntities, VisibilityClass},
     },
 };
-use bytemuck::{Pod, Zeroable};
 
 /// A marker component that represents an entity that is to be rendered using
 /// our custom phase item.
@@ -109,16 +107,6 @@ where
         // Borrow check workaround.
         let custom_phase_item_buffers = custom_phase_item_buffers.into_inner();
 
-        // Tell the GPU where the vertices are.
-        pass.set_vertex_buffer(
-            0,
-            custom_phase_item_buffers
-                .vertices
-                .buffer()
-                .unwrap()
-                .slice(..),
-        );
-
         // Tell the GPU where the indices are.
         pass.set_index_buffer(
             custom_phase_item_buffers
@@ -154,12 +142,6 @@ where
 /// then left alone.
 #[derive(Resource)]
 struct CustomPhaseItemBuffers {
-    /// The vertices for the single triangle.
-    ///
-    /// This is a [`RawBufferVec`] because that's the simplest and fastest type
-    /// of GPU buffer, and [`Vertex`] objects are simple.
-    vertices: RawBufferVec<Vertex>,
-
     /// The indices of the single triangle.
     ///
     /// As above, this is a [`RawBufferVec`] because `u32` values have trivial
@@ -167,35 +149,11 @@ struct CustomPhaseItemBuffers {
     indices: RawBufferVec<u32>,
 }
 
-/// The CPU-side structure that describes a single vertex of the triangle.
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[repr(C)]
-struct Vertex {
-    /// The 3D position of the triangle vertex.
-    position: Vec3,
-    /// Padding.
-    pad0: u32,
-}
-
-impl Vertex {
-    /// Creates a new vertex structure.
-    const fn new(position: Vec3) -> Vertex {
-        Vertex { position, pad0: 0 }
-    }
-}
-
 /// The custom draw commands that Bevy executes for each entity we enqueue into
 /// the render phase.
 type DrawCustomPhaseItemCommands = (SetItemPipeline, DrawCustomPhaseItem);
 
-const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
-    vec2(-0.5, -0.5),
-    vec2(0.5, -0.5),
-    vec2(0.5, 0.5),
-    vec2(-0.5, 0.5),
-];
-
-const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
+const QUAD_INDICES: [u32; 6] = [2, 0, 1, 1, 3, 2];
 
 /// The entry point.
 fn main() {
@@ -369,16 +327,7 @@ impl SpecializedRenderPipeline for CustomPhasePipeline {
                 shader: self.shader.clone(),
                 shader_defs: vec![],
                 entry_point: "vertex".into(),
-                buffers: vec![VertexBufferLayout {
-                    array_stride: size_of::<Vertex>() as u64,
-                    step_mode: VertexStepMode::Vertex,
-                    // This needs to match the layout of [`Vertex`].
-                    attributes: vec![VertexAttribute {
-                        format: VertexFormat::Float32x3,
-                        offset: 0,
-                        shader_location: 0,
-                    }],
-                }],
+                buffers: vec![],
             },
             fragment: Some(FragmentState {
                 shader: self.shader.clone(),
@@ -419,23 +368,15 @@ impl FromWorld for CustomPhaseItemBuffers {
         let render_queue = world.resource::<RenderQueue>();
 
         // Create the vertex and index buffers.
-        let mut vbo = RawBufferVec::new(BufferUsages::VERTEX);
         let mut ibo = RawBufferVec::new(BufferUsages::INDEX);
 
-        for position in &QUAD_VERTEX_POSITIONS {
-            vbo.push(Vertex::new(position.extend(0.0)));
-        }
         for index in QUAD_INDICES {
             ibo.push(index);
         }
 
         // These two lines are required in order to trigger the upload to GPU.
-        vbo.write_buffer(render_device, render_queue);
         ibo.write_buffer(render_device, render_queue);
 
-        CustomPhaseItemBuffers {
-            vertices: vbo,
-            indices: ibo,
-        }
+        CustomPhaseItemBuffers { indices: ibo }
     }
 }
