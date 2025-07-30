@@ -228,12 +228,15 @@ impl Plugin for CustomPhaseItemPlugin {
             render_app
                 .add_systems(
                     Render,
+                    prepare_custom_phase_item_buffers.in_set(RenderSet::Prepare),
+                )
+                .add_systems(
+                    Render,
                     (
                         prepare_custom_phase_item_view_bind_group,
-                        prepare_custom_phase_item_buffers,
                         prepare_custom_phase_item_image_bind_group,
                     )
-                        .in_set(RenderSet::Prepare),
+                        .in_set(RenderSet::PrepareBindGroups),
                 )
                 .add_systems(Render, queue_custom_phase_item.in_set(RenderSet::Queue));
         }
