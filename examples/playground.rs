@@ -7,10 +7,11 @@ use bevy::{
             lifetimeless::{Read, SRes},
         },
     },
+    math::Affine3,
     platform::collections::{HashMap, hash_map::Entry},
     prelude::*,
     render::{
-        Render, RenderApp, RenderSet,
+        Extract, Render, RenderApp, RenderSet,
         extract_component::{ExtractComponent, ExtractComponentPlugin},
         primitives::Aabb,
         render_asset::RenderAssets,
@@ -22,12 +23,13 @@ use bevy::{
             AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
             BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
             FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState,
-            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
+            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType,
             SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
-            TextureSampleType, VertexState,
+            TextureSampleType, UniformBuffer, VertexState,
             binding_types::{sampler, texture_2d, uniform_buffer},
         },
         renderer::{RenderDevice, RenderQueue},
+        sync_world::RenderEntity,
         texture::GpuImage,
         view::{
             self, ExtractedView, RenderVisibleEntities, ViewUniform, ViewUniformOffset,
@@ -59,7 +61,13 @@ struct CustomRenderedEntity {
 struct CustomPhasePipeline {
     view_layout: BindGroupLayout,
     image_layout: BindGroupLayout,
+    billboard_layout: BindGroupLayout,
     shader: Handle<Shader>,
+}
+
+#[derive(ShaderType, Clone)]
+pub struct BillboardUniform {
+    pub world_from_local: [Vec4; 3],
 }
 
 impl FromWorld for CustomPhasePipeline {
@@ -85,6 +93,14 @@ impl FromWorld for CustomPhasePipeline {
             ),
         );
 
+        let billboard_layout = render_device.create_bind_group_layout(
+            "custom_billboard_layout",
+            &BindGroupLayoutEntries::single(
+                ShaderStages::VERTEX,
+                uniform_buffer::<BillboardUniform>(false),
+            ),
+        );
+
         // Load and compile the shader in the background.
         let asset_server = world.resource::<AssetServer>();
         let shader = asset_server.load("shaders/custom_phase_item.wgsl");
@@ -92,6 +108,7 @@ impl FromWorld for CustomPhasePipeline {
         Self {
             view_layout,
             image_layout,
+            billboard_layout,
             shader,
         }
     }
@@ -101,6 +118,7 @@ type DrawCustomPhaseItemRenderCommand = (
     SetItemPipeline,
     SetCustomViewBindGroup<0>,
     SetCustomImageBindGroup<1>,
+    SetCustomBillboardBindGroup<2>,
     DrawCustomPhaseItem,
 );
 
@@ -145,7 +163,31 @@ impl<const I: usize, P: PhaseItem> RenderCommand<P> for SetCustomImageBindGroup<
         let Some(bind_group) = image_bind_groups.values.get(&entity.image.id()) else {
             return RenderCommandResult::Skip;
         };
-        pass.set_bind_group(1, bind_group, &[]);
+        pass.set_bind_group(I, bind_group, &[]);
+
+        RenderCommandResult::Success
+    }
+}
+
+struct SetCustomBillboardBindGroup<const I: usize>;
+impl<const I: usize, P: PhaseItem> RenderCommand<P> for SetCustomBillboardBindGroup<I> {
+    type ViewQuery = ();
+    type ItemQuery = Read<BillboardBindGroup>;
+    type Param = ();
+
+    #[inline]
+    fn render<'w>(
+        _item: &P,
+        _view: ROQueryItem<'w, Self::ViewQuery>,
+        entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _param: SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) -> RenderCommandResult {
+        let Some(billboard_bind_group) = entity else {
+            return RenderCommandResult::Skip;
+        };
+
+        pass.set_bind_group(I, &billboard_bind_group.value, &[]);
 
         RenderCommandResult::Success
     }
@@ -231,10 +273,15 @@ impl Plugin for CustomPhaseItemPlugin {
                     prepare_custom_phase_item_buffers.in_set(RenderSet::Prepare),
                 )
                 .add_systems(
+                    ExtractSchedule,
+                    extract_custom_phase_item_billboard_transforms,
+                )
+                .add_systems(
                     Render,
                     (
                         prepare_custom_phase_item_view_bind_group,
                         prepare_custom_phase_item_image_bind_group,
+                        prepare_custom_phase_item_billboard_bind_group,
                     )
                         .in_set(RenderSet::PrepareBindGroups),
                 )
@@ -346,6 +393,58 @@ fn prepare_custom_phase_item_image_bind_group(
     }
 }
 
+fn extract_custom_phase_item_billboard_transforms(
+    mut commands: Commands,
+    billboards: Extract<Query<(RenderEntity, &GlobalTransform)>>,
+) {
+    for (entity, transform) in &billboards {
+        commands
+            .entity(entity)
+            .insert(ExtractedBillboardTransforms {
+                world_from_local: Affine3::from(&transform.affine()),
+            });
+    }
+}
+
+#[derive(Component)]
+pub struct ExtractedBillboardTransforms {
+    world_from_local: Affine3,
+}
+
+#[derive(Component)]
+pub struct BillboardBindGroup {
+    value: BindGroup,
+}
+
+fn prepare_custom_phase_item_billboard_bind_group(
+    mut commands: Commands,
+    billboards: Query<(Entity, &ExtractedBillboardTransforms), With<CustomRenderedEntity>>,
+    custom_phase_pipeline: Res<CustomPhasePipeline>,
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+) {
+    for (entity, transforms) in &billboards {
+        // TODO: Pretty sure this is wrong
+        let uniform = BillboardUniform {
+            world_from_local: transforms.world_from_local.to_transpose(),
+        };
+        let mut uniform_buffer = UniformBuffer::<BillboardUniform>::from(uniform);
+        uniform_buffer.write_buffer(&render_device, &render_queue);
+
+        if let Some(binding) = uniform_buffer.binding() {
+            let billboard_bind_group = render_device.create_bind_group(
+                "custom_billboard_bind_group",
+                &custom_phase_pipeline.billboard_layout,
+                &BindGroupEntries::single(binding),
+            );
+
+            commands.entity(entity).insert(BillboardBindGroup {
+                value: billboard_bind_group,
+            });
+        }
+    }
+}
+
 /// A render-world system that enqueues the entity with custom rendering into
 /// the opaque render phases of each view.
 fn queue_custom_phase_item(
@@ -407,7 +506,11 @@ impl SpecializedRenderPipeline for CustomPhasePipeline {
     fn specialize(&self, msaa: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("custom render pipeline".into()),
-            layout: vec![self.view_layout.clone(), self.image_layout.clone()],
+            layout: vec![
+                self.view_layout.clone(),
+                self.image_layout.clone(),
+                self.billboard_layout.clone(),
+            ],
             push_constant_ranges: vec![],
             vertex: VertexState {
                 shader: self.shader.clone(),

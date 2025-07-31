@@ -3,8 +3,14 @@
 // This shader goes with the `custom_phase_item` example. It demonstrates how to
 // enqueue custom rendering logic in a `RenderPhase`.
 #import bevy_render::view::View
+#import bevy_render::maths::affine3_to_square
+
+struct Billboard {
+    world_from_local: mat3x4<f32>,
+};
 
 @group(0) @binding(0) var<uniform> view: View;
+@group(2) @binding(0) var<uniform> billboard: Billboard;
 
 // The GPU-side vertex structure.
 struct Vertex {
@@ -31,7 +37,15 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     );
 
     // Subtract by 0.5 to bring [0,1] into [-1,1] clip space
-    vertex_output.clip_position = vec4(vertex_position.xyz - vec3<f32>(0.5, 0.5, 0.0), 1.0);
+    let local_position = vec4(100.0 * (vertex_position.xyz - vec3<f32>(0.5, 0.5, 0.0)), 1.0);
+
+    let world_from_local = affine3_to_square(billboard.world_from_local);
+    let world_position = world_from_local * local_position;
+    let clip_from_world = view.clip_from_world;
+    vertex_output.clip_position = world_position * clip_from_world;
+
+    //vertex_output.clip_position = local_position;
+
     // Subtract position from (1,1) to flip ?????
     vertex_output.uv = vec2<f32>(1.0, 1.0) - vec2<f32>(vertex_position.xy);
     return vertex_output;
@@ -44,5 +58,6 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 @fragment
 fn fragment(vertex_output: VertexOutput) -> @location(0) vec4<f32> {
     var color = textureSample(texture, texture_sampler, vertex_output.uv);
-    return color;
+    //return color;
+    return vec4<f32>(0.5, 0.0, 0.5, 1.0);
 }
