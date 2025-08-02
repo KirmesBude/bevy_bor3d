@@ -6,7 +6,7 @@ use std::f32::consts::PI;
 use bevy::{
     image::{ImageLoaderSettings, ImageSampler},
     prelude::*,
-    render::{camera::Viewport, primitives::Aabb},
+    render::camera::Viewport,
     window::WindowResized,
 };
 use bevy_bor3d::{Sprite3d, Sprite3dPlugin};
@@ -32,6 +32,48 @@ fn setup(
     mut cube_materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
+    // Cameras and their dedicated UI
+    for (index, camera_pos) in [
+        Vec3::new(0.0, 200.0, -150.0),
+        Vec3::new(150.0, 150., 50.0),
+        Vec3::new(100.0, 150., -150.0),
+        Vec3::new(-100.0, 80., 150.0),
+    ]
+    .iter()
+    .enumerate()
+    {
+        commands.spawn((
+            Camera3d::default(),
+            Transform::from_translation(*camera_pos).looking_at(Vec3::ZERO, Vec3::Y),
+            Camera {
+                // Renders cameras with different priorities to prevent ambiguities
+                order: index as isize,
+                ..default()
+            },
+            CameraPosition {
+                pos: UVec2::new((index % 2) as u32, (index / 2) as u32),
+            },
+            //Orbiting,
+        ));
+    }
+
+    // Light
+    commands.spawn((
+        Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 1.0, -PI / 4.)),
+        DirectionalLight {
+            shadows_enabled: true,
+            ..default()
+        },
+    ));
+
+    // Reference cube
+    commands.spawn((
+        Name::new("Cube"),
+        Mesh3d(meshes.add(Cuboid::new(25.0, 25.0, 25.0))),
+        MeshMaterial3d(cube_materials.add(Color::srgb_u8(124, 144, 255))),
+        Transform::from_xyz(1.0, 0.5, 1.0),
+    ));
+
     commands.spawn((
         Visibility::default(),
         Transform::from_translation(vec3(0.5, 0.0, 0.0)),
@@ -40,16 +82,12 @@ fn setup(
             image: asset_server.load_with_settings(
                 "sprites/bossa1.png",
                 |s: &mut ImageLoaderSettings| {
-                    s.sampler = ImageSampler::nearest();
+                    s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
                 },
             ),
         },
-    ));
-
-    // Spawn the camera.
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(0.0, 0.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Spinning::default(),
+        Shuffling::default(),
     ));
 }
 
