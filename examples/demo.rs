@@ -53,7 +53,7 @@ fn setup(
             CameraPosition {
                 pos: UVec2::new((index % 2) as u32, (index / 2) as u32),
             },
-            //Orbiting,
+            Orbiting,
         ));
     }
 
@@ -71,24 +71,19 @@ fn setup(
         Name::new("Cube"),
         Mesh3d(meshes.add(Cuboid::new(25.0, 25.0, 25.0))),
         MeshMaterial3d(cube_materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(1.0, 0.5, 1.0),
+        Transform::from_xyz(1.0, 0.5, -1.0),
     ));
 
-    commands.spawn((
-        Visibility::default(),
-        Transform::from_translation(vec3(0.5, 0.0, 0.0)),
-        // TODO: Aabb necessary?
-        Sprite3d {
+    commands.spawn(
+Sprite3d {
             image: asset_server.load_with_settings(
                 "sprites/bossa1.png",
                 |s: &mut ImageLoaderSettings| {
                     s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
                 },
             ),
-        },
-        Spinning::default(),
-        Shuffling::default(),
-    ));
+        }
+    );
 }
 
 #[derive(Component)]
