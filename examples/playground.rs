@@ -1,20 +1,42 @@
 use bevy::{
-    core_pipeline::core_3d::{Transparent3d, CORE_3D_DEPTH_FORMAT}, ecs::{
+    core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, Transparent3d},
+    ecs::{
         query::ROQueryItem,
         system::{
-            lifetimeless::{Read, SRes}, SystemParamItem
+            SystemParamItem,
+            lifetimeless::{Read, SRes},
         },
-    }, image::{ImageLoaderSettings, ImageSampler}, math::Affine3, platform::collections::{hash_map::Entry, HashMap}, prelude::*, render::{
-        extract_component::{ExtractComponent, ExtractComponentPlugin}, primitives::Aabb, render_asset::RenderAssets, render_phase::{
+    },
+    image::{ImageLoaderSettings, ImageSampler},
+    math::Affine3,
+    platform::collections::{HashMap, hash_map::Entry},
+    prelude::*,
+    render::{
+        Extract, Render, RenderApp, RenderSet,
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        primitives::Aabb,
+        render_asset::RenderAssets,
+        render_phase::{
             AddRenderCommand, DrawFunctions, PhaseItem, PhaseItemExtraIndex, RenderCommand,
             RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases,
-        }, render_resource::{
-            binding_types::{sampler, texture_2d, uniform_buffer}, AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendState, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState, RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat, TextureSampleType, UniformBuffer, VertexState
-        }, renderer::{RenderDevice, RenderQueue}, sync_world::RenderEntity, texture::GpuImage, view::{
+        },
+        render_resource::{
+            AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
+            BlendState, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
+            DepthStencilState, FragmentState, IndexFormat, MultisampleState, PipelineCache,
+            PrimitiveState, RawBufferVec, RenderPipelineDescriptor, SamplerBindingType,
+            ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines,
+            TextureFormat, TextureSampleType, UniformBuffer, VertexState,
+            binding_types::{sampler, texture_2d, uniform_buffer},
+        },
+        renderer::{RenderDevice, RenderQueue},
+        sync_world::RenderEntity,
+        texture::GpuImage,
+        view::{
             self, ExtractedView, RenderVisibleEntities, ViewUniform, ViewUniformOffset,
             ViewUniforms, VisibilityClass,
-        }, Extract, Render, RenderApp, RenderSet
-    }
+        },
+    },
 };
 
 /// A marker component that represents an entity that is to be rendered using
@@ -24,12 +46,10 @@ use bevy::{
 /// tell Bevy that this object should be pulled into the render world. Also note
 /// the `on_add` hook, which is needed to tell Bevy's `check_visibility` system
 /// that entities with this component need to be examined for visibility.
-#[derive(Clone, Component, ExtractComponent, AsBindGroup)]
+#[derive(Clone, Component, ExtractComponent)]
 #[require(VisibilityClass)]
 #[component(on_add = view::add_visibility_class::<CustomRenderedEntity>)]
 struct CustomRenderedEntity {
-    #[texture(0)]
-    #[sampler(1)]
     image: Handle<Image>,
 }
 
@@ -293,9 +313,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             half_extents: Vec3A::splat(0.5),
         },
         CustomRenderedEntity {
-            image: asset_server.load_with_settings("sprites/bossa1.png", |s: &mut ImageLoaderSettings| {
-                s.sampler = ImageSampler::nearest();
-            }),
+            image: asset_server.load_with_settings(
+                "sprites/bossa1.png",
+                |s: &mut ImageLoaderSettings| {
+                    s.sampler = ImageSampler::nearest();
+                },
+            ),
         },
     ));
 
