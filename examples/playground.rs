@@ -306,7 +306,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // the render world via [`ExtractComponent`].
     commands.spawn((
         Visibility::default(),
-        Transform::default(),
+        Transform::from_translation(vec3(0.5, 0.0, 0.0)),
         // This `Aabb` is necessary for the visibility checks to work.
         Aabb {
             center: Vec3A::ZERO,

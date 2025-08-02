@@ -37,17 +37,16 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     );
 
     // Subtract by 0.5 to bring [0,1] into [-1,1] clip space
-    let local_position = vec4(100.0 * (vertex_position.xyz - vec3<f32>(0.5, 0.5, 0.0)), 1.0);
+    let local_position = vec4<f32>((vertex_position.xyz - vec3<f32>(0.5, 0.5, 0.0)), 1.0);
 
     let world_from_local = affine3_to_square(billboard.world_from_local);
     let world_position = world_from_local * local_position;
     let clip_from_world = view.clip_from_world;
-    vertex_output.clip_position = world_position * clip_from_world;
-
-    //vertex_output.clip_position = local_position;
+    vertex_output.clip_position = clip_from_world * world_position;
 
     // Subtract position from (1,1) to flip ?????
     vertex_output.uv = vec2<f32>(1.0, 1.0) - vec2<f32>(vertex_position.xy);
+    
     return vertex_output;
 }
 
@@ -58,6 +57,6 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 @fragment
 fn fragment(vertex_output: VertexOutput) -> @location(0) vec4<f32> {
     var color = textureSample(texture, texture_sampler, vertex_output.uv);
-    //return color;
-    return vec4<f32>(0.5, 0.0, 0.5, 1.0);
+    
+    return color;
 }
