@@ -109,6 +109,7 @@ impl Plugin for Sprite3dRenderPlugin {
                 .init_resource::<Sprite3dPipeline>()
                 .init_resource::<SpecializedRenderPipelines<Sprite3dPipeline>>()
                 .init_resource::<Sprite3dRenderBuffer>() // TODO: This might not work?
+                .init_resource::<ImageBindGroups>()
                 .add_render_command::<Transparent3d, DrawSprite3dRenderCommand>();
         }
     }

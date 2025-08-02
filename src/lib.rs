@@ -31,5 +31,5 @@ impl Plugin for Sprite3dPlugin {
 #[reflect(Component, Default, Debug, Clone)]
 #[component(on_add = view::add_visibility_class::<Sprite3d>)]
 pub struct Sprite3d {
-    image: Handle<Image>,
+    pub image: Handle<Image>,
 }
