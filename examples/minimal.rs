@@ -40,22 +40,12 @@ fn setup(
         Transform::from_xyz(0.0, 0.0, 4.0),
     ));
 
-    // Reference cube
-    commands.spawn((
-        Name::new("Cube2"),
-        Mesh3d(meshes.add(Cuboid::new(25.0, 25.0, 25.0))),
-        MeshMaterial3d(cube_materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(0.0, 0.0, -4.0),
-    ));
-
-    commands.spawn(
-Sprite3d {
-            image: asset_server.load_with_settings(
-                "sprites/bossa1.png",
-                |s: &mut ImageLoaderSettings| {
-                    s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
-                },
-            ),
-        }
-    );
+    commands.spawn(Sprite3d {
+        image: asset_server.load_with_settings(
+            "sprites/bossa1.png",
+            |s: &mut ImageLoaderSettings| {
+                s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
+            },
+        ),
+    });
 }

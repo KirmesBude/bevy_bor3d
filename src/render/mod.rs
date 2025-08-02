@@ -1,7 +1,7 @@
 use bevy::{
     app::{App, Plugin},
-    asset::{load_internal_asset, weak_handle, AssetId, Handle},
-    core_pipeline::core_3d::{Transparent3d, CORE_3D_DEPTH_FORMAT},
+    asset::{AssetId, Handle, load_internal_asset, weak_handle},
+    core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, Transparent3d},
     ecs::{
         component::Component,
         entity::Entity,
@@ -9,22 +9,37 @@ use bevy::{
         resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{
-            lifetimeless::{Read, SRes}, Commands, Query, Res, ResMut, SystemParamItem
+            Commands, Query, Res, ResMut, SystemParamItem,
+            lifetimeless::{Read, SRes},
         },
         world::{FromWorld, World},
     },
     image::{BevyDefault, Image},
-    math::{vec3, Affine3, Vec3, Vec4},
+    math::{Affine3, Vec3, Vec4, vec3},
     platform::collections::HashMap,
     render::{
-        render_asset::RenderAssets, render_phase::{
-            AddRenderCommand, DrawFunctions, PhaseItem, PhaseItemExtraIndex, RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases
-        }, render_resource::{
-            binding_types::{sampler, texture_2d, uniform_buffer}, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendState, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState, RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat, TextureSampleType, UniformBuffer, VertexState
-        }, renderer::{RenderDevice, RenderQueue}, sync_world::RenderEntity, texture::GpuImage, view::{
+        Extract, ExtractSchedule, Render, RenderApp, RenderSet,
+        render_asset::RenderAssets,
+        render_phase::{
+            AddRenderCommand, DrawFunctions, PhaseItem, PhaseItemExtraIndex, RenderCommand,
+            RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases,
+        },
+        render_resource::{
+            BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendState,
+            BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
+            FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState,
+            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages,
+            ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
+            TextureSampleType, UniformBuffer, VertexState,
+            binding_types::{sampler, texture_2d, uniform_buffer},
+        },
+        renderer::{RenderDevice, RenderQueue},
+        sync_world::RenderEntity,
+        texture::GpuImage,
+        view::{
             ExtractedView, Msaa, RenderVisibleEntities, ViewUniform, ViewUniformOffset,
             ViewUniforms,
-        }, Extract, ExtractSchedule, Render, RenderApp, RenderSet
+        },
     },
     transform::components::GlobalTransform,
     utils::default,
@@ -189,7 +204,7 @@ impl SpecializedRenderPipeline for Sprite3dPipeline {
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
                 depth_write_enabled: false,
-                depth_compare: CompareFunction::Always,
+                depth_compare: CompareFunction::Greater,
                 stencil: default(),
                 bias: default(),
             }),
@@ -511,8 +526,7 @@ fn queue_sprite3d(
         // Find all the custom rendered entities that are visible from this
         // view.
         for (render_entity, visible_entity) in view_visible_entities.get::<Sprite3d>().iter() {
-            let Ok(extracted_sprite3d) = extraced_sprite3d_query.get(*render_entity)
-            else {
+            let Ok(extracted_sprite3d) = extraced_sprite3d_query.get(*render_entity) else {
                 continue;
             };
 
@@ -523,7 +537,8 @@ fn queue_sprite3d(
             let pipeline_id =
                 specialized_render_pipelines.specialize(&pipeline_cache, &sprite3d_pipeline, *msaa);
 
-            let distance = range_finder.distance_translation(&extracted_sprite3d.transform.translation());
+            let distance =
+                range_finder.distance_translation(&extracted_sprite3d.transform.translation());
             // TODO: How to determine this?
             let indexed = false;
             transparent_phase.add(Transparent3d {

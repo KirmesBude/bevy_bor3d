@@ -74,16 +74,14 @@ fn setup(
         Transform::from_xyz(1.0, 0.5, -1.0),
     ));
 
-    commands.spawn(
-Sprite3d {
-            image: asset_server.load_with_settings(
-                "sprites/bossa1.png",
-                |s: &mut ImageLoaderSettings| {
-                    s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
-                },
-            ),
-        }
-    );
+    commands.spawn(Sprite3d {
+        image: asset_server.load_with_settings(
+            "sprites/bossa1.png",
+            |s: &mut ImageLoaderSettings| {
+                s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
+            },
+        ),
+    });
 }
 
 #[derive(Component)]
