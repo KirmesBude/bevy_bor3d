@@ -522,9 +522,7 @@ fn queue_sprite3d(
 
         // Find all the custom rendered entities that are visible from this
         // view.
-        for (render_entity, visible_entity) in
-            view_visible_entities.get::<ExtractedSprite3d>().iter()
-        {
+        for (render_entity, visible_entity) in view_visible_entities.get::<Sprite3d>().iter() {
             // Ordinarily, the [`SpecializedRenderPipeline::Key`] would contain
             // some per-view settings, such as whether the view is HDR, but for
             // simplicity's sake we simply hard-code the view's characteristics,

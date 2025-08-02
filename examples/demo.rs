@@ -35,11 +35,7 @@ fn setup(
     commands.spawn((
         Visibility::default(),
         Transform::from_translation(vec3(0.5, 0.0, 0.0)),
-        // This `Aabb` is necessary for the visibility checks to work.
-        Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::splat(0.5),
-        },
+        // TODO: Aabb necessary?
         Sprite3d {
             image: asset_server.load_with_settings(
                 "sprites/bossa1.png",

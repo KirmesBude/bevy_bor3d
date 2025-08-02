@@ -38,6 +38,7 @@ use bevy::{
         },
     },
 };
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 /// A marker component that represents an entity that is to be rendered using
 /// our custom phase item.
@@ -255,6 +256,10 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
         .add_plugins(CustomPhaseItemPlugin)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        })
+        .add_plugins(WorldInspectorPlugin::new())
         .add_systems(Startup, setup);
 
     app.run();
