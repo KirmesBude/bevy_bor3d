@@ -21,11 +21,11 @@ use bevy::{
         },
         render_resource::{
             AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
-            BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
-            FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState,
-            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType,
-            SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
-            TextureSampleType, UniformBuffer, VertexState,
+            BlendState, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
+            DepthStencilState, FragmentState, IndexFormat, MultisampleState, PipelineCache,
+            PrimitiveState, RawBufferVec, RenderPipelineDescriptor, SamplerBindingType,
+            ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines,
+            TextureFormat, TextureSampleType, UniformBuffer, VertexState,
             binding_types::{sampler, texture_2d, uniform_buffer},
         },
         renderer::{RenderDevice, RenderQueue},
@@ -68,6 +68,7 @@ struct CustomPhasePipeline {
 #[derive(ShaderType, Clone)]
 pub struct BillboardUniform {
     pub world_from_local: [Vec4; 3],
+    pub size: Vec3,
 }
 
 impl FromWorld for CustomPhasePipeline {
@@ -253,7 +254,7 @@ const QUAD_INDICES: [u32; 6] = [2, 0, 1, 1, 3, 2];
 /// The entry point.
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins)
+    app.add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // TODO: I should automate that for billboard assets somehow??
         .add_plugins(CustomPhaseItemPlugin)
         .add_systems(Startup, setup);
 
@@ -320,7 +321,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Spawn the camera.
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 0.0, 1.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(0.0, 0.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 }
 
@@ -418,29 +419,40 @@ pub struct BillboardBindGroup {
 
 fn prepare_custom_phase_item_billboard_bind_group(
     mut commands: Commands,
-    billboards: Query<(Entity, &ExtractedBillboardTransforms), With<CustomRenderedEntity>>,
+    billboards: Query<(Entity, &ExtractedBillboardTransforms, &CustomRenderedEntity)>,
     custom_phase_pipeline: Res<CustomPhasePipeline>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
 ) {
-    for (entity, transforms) in &billboards {
-        // TODO: Pretty sure this is wrong
-        let uniform = BillboardUniform {
-            world_from_local: transforms.world_from_local.to_transpose(),
-        };
-        let mut uniform_buffer = UniformBuffer::<BillboardUniform>::from(uniform);
-        uniform_buffer.write_buffer(&render_device, &render_queue);
-
-        if let Some(binding) = uniform_buffer.binding() {
-            let billboard_bind_group = render_device.create_bind_group(
-                "custom_billboard_bind_group",
-                &custom_phase_pipeline.billboard_layout,
-                &BindGroupEntries::single(binding),
+    for (entity, transforms, custom_phase_item) in &billboards {
+        let asset_id = custom_phase_item.image.id();
+        if let Some(gpu_image) = gpu_images.get(asset_id) {
+            let size = gpu_image.size;
+            let size = vec3(
+                size.width as f32,
+                size.height as f32,
+                size.depth_or_array_layers as f32,
             );
 
-            commands.entity(entity).insert(BillboardBindGroup {
-                value: billboard_bind_group,
-            });
+            let uniform = BillboardUniform {
+                world_from_local: transforms.world_from_local.to_transpose(),
+                size,
+            };
+            let mut uniform_buffer = UniformBuffer::<BillboardUniform>::from(uniform);
+            uniform_buffer.write_buffer(&render_device, &render_queue);
+
+            if let Some(binding) = uniform_buffer.binding() {
+                let billboard_bind_group = render_device.create_bind_group(
+                    "custom_billboard_bind_group",
+                    &custom_phase_pipeline.billboard_layout,
+                    &BindGroupEntries::single(binding),
+                );
+
+                commands.entity(entity).insert(BillboardBindGroup {
+                    value: billboard_bind_group,
+                });
+            }
         }
     }
 }
@@ -527,7 +539,7 @@ impl SpecializedRenderPipeline for CustomPhasePipeline {
                     // HDR format and substitute the appropriate texture format
                     // here, but we omit that for simplicity.
                     format: TextureFormat::bevy_default(),
-                    blend: None,
+                    blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
