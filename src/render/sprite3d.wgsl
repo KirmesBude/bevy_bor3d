@@ -39,9 +39,8 @@ fn vertex(in: VertexInput) -> VertexOutput {
     let clip_from_world = view.clip_from_world;
     out.clip_position = clip_from_world * world_position;
     
-    // Subtract position from (1,1) to flip ?????
-    // TODO: Now it is flipped on the x axis
-    out.uv = vec2<f32>(1.0, 1.0) - vec2<f32>(vertex_position.xy);
+    // UV correctly like this?
+    out.uv = vec2<f32>(vertex_position.xy) * vec2<f32>(1.0, -1.0) + vec2<f32>(0.0, 1.0);
     
     return out;
 }
