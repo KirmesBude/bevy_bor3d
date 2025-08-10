@@ -405,7 +405,7 @@ struct ExtractedSprite3d {
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 enum ExtractedBillboard {
     None = 0,
-    Forwad = 1,
+    Forward = 1,
     LookAt = 2,
 }
 
@@ -413,7 +413,7 @@ impl From<Option<&Billboard>> for ExtractedBillboard {
     fn from(value: Option<&Billboard>) -> Self {
         match value {
             Some(billboard) => match billboard {
-                Billboard::Forward => Self::Forwad,
+                Billboard::Forward => Self::Forward,
                 Billboard::LookAt => Self::LookAt,
             },
             None => Self::None,

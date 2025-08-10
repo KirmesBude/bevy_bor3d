@@ -17,12 +17,13 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
 };
 
-
-// TODO: For now we assume +y up and +z forward
-// TODO: For now all rotation is ignored for both the camera and the view
 @vertex
 fn vertex(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
+
+    // TODO: For now we assume +y up and +z forward
+    let up = vec3<f32>(0.0, 1.0, 0.0);
+    let forward = vec3<f32>(0.0, 0.0, 1.0);
 
     let vertex_position = vec3<f32>(
         f32(in.index & 0x1u),
@@ -40,6 +41,7 @@ fn vertex(in: VertexInput) -> VertexOutput {
     var world_from_local = affine3_to_square(sprite3d.world_from_local);
     var view_from_world = view.view_from_world;
 
+    // TODO: For now all rotation is ignored for both the camera and the view
 #if BILLBOARD != 0
     // If we billboard, we reverse the the rotation 
 
@@ -64,6 +66,25 @@ fn vertex(in: VertexInput) -> VertexOutput {
         vec4<f32>(0.0, 0.0, 0.0, 1.0),
     );
     view_from_world = view_from_world * view_inverse_mat4;
+#endif
+
+#if BILLBOARD == 2
+    // Compute new entity rotation from camera position, entity position and up/forward
+
+    let view_world_position = view.world_position;
+    let entity_world_position = world_from_local[3].xyz;
+
+    let look_at_back = normalize(view_world_position - entity_world_position); // TODO: Can this fail?
+    let look_at_right = normalize(cross(up, look_at_back)); // TODO: Can this fail?
+    let look_at_up = cross(look_at_back, look_at_right);
+
+    let look_at_mat4 = mat4x4<f32>(
+        vec4<f32>(look_at_right, 0.0),
+        vec4<f32>(look_at_up, 0.0),
+        vec4<f32>(look_at_back, 0.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0),
+    );
+    world_from_local = world_from_local * look_at_mat4;
 #endif
 
     let world_position = world_from_local * local_position;
