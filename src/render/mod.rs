@@ -28,9 +28,9 @@ use bevy::{
             BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BlendState,
             BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
             FragmentState, IndexFormat, MultisampleState, PipelineCache, PrimitiveState,
-            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages,
-            ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat,
-            TextureSampleType, UniformBuffer, VertexState,
+            RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderDefVal,
+            ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines,
+            TextureFormat, TextureSampleType, UniformBuffer, VertexState,
             binding_types::{sampler, texture_2d, uniform_buffer},
         },
         renderer::{RenderDevice, RenderQueue},
@@ -45,7 +45,7 @@ use bevy::{
     utils::default,
 };
 
-use crate::Sprite3d;
+use crate::{Billboard, Sprite3d};
 
 pub struct Sprite3dRenderPlugin;
 
@@ -108,7 +108,7 @@ impl Plugin for Sprite3dRenderPlugin {
             render_app
                 .init_resource::<Sprite3dPipeline>()
                 .init_resource::<SpecializedRenderPipelines<Sprite3dPipeline>>()
-                .init_resource::<Sprite3dRenderBuffer>() // TODO: This might not work?
+                .init_resource::<Sprite3dRenderBuffer>()
                 .init_resource::<ImageBindGroups>()
                 .add_render_command::<Transparent3d, DrawSprite3dRenderCommand>();
         }
@@ -167,10 +167,16 @@ impl FromWorld for Sprite3dPipeline {
     }
 }
 
-impl SpecializedRenderPipeline for Sprite3dPipeline {
-    type Key = Msaa;
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct Sprite3dPipelineKey {
+    msaa: Msaa,
+    billboard: ExtractedBillboard,
+}
 
-    fn specialize(&self, msaa: Self::Key) -> RenderPipelineDescriptor {
+impl SpecializedRenderPipeline for Sprite3dPipeline {
+    type Key = Sprite3dPipelineKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("bor3d_sprite3d_render_pipeline".into()),
             layout: vec![
@@ -181,13 +187,13 @@ impl SpecializedRenderPipeline for Sprite3dPipeline {
             push_constant_ranges: vec![],
             vertex: VertexState {
                 shader: self.shader.clone(),
-                shader_defs: vec![],
+                shader_defs: vec![ShaderDefVal::UInt("BILLBOARD".into(), key.billboard as u32)],
                 entry_point: "vertex".into(),
                 buffers: vec![],
             },
             fragment: Some(FragmentState {
                 shader: self.shader.clone(),
-                shader_defs: vec![],
+                shader_defs: vec![ShaderDefVal::UInt("BILLBOARD".into(), key.billboard as u32)], // TODO: For some reason I need to add it here too?
                 entry_point: "fragment".into(),
                 targets: vec![Some(ColorTargetState {
                     // Ordinarily, you'd want to check whether the view has the
@@ -209,7 +215,7 @@ impl SpecializedRenderPipeline for Sprite3dPipeline {
                 bias: default(),
             }),
             multisample: MultisampleState {
-                count: msaa.samples(),
+                count: key.msaa.samples(),
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -393,16 +399,44 @@ where
 struct ExtractedSprite3d {
     transform: GlobalTransform,
     asset_id: AssetId<Image>,
+    billboard: ExtractedBillboard,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
+enum ExtractedBillboard {
+    None = 0,
+    Forwad = 1,
+    LookAt = 2,
+}
+
+impl From<Option<&Billboard>> for ExtractedBillboard {
+    fn from(value: Option<&Billboard>) -> Self {
+        match value {
+            Some(billboard) => match billboard {
+                Billboard::Forward => Self::Forwad,
+                Billboard::LookAt => Self::LookAt,
+            },
+            None => Self::None,
+        }
+    }
 }
 
 fn extract_sprite3d(
     mut commands: Commands,
-    sprite3d_query: Extract<Query<(RenderEntity, &Sprite3d, &GlobalTransform)>>,
+    sprite3d_query: Extract<
+        Query<(
+            RenderEntity,
+            &Sprite3d,
+            &GlobalTransform,
+            Option<&Billboard>,
+        )>,
+    >,
 ) {
-    for (entity, sprite3d, transform) in &sprite3d_query {
+    for (entity, sprite3d, transform, billboard) in &sprite3d_query {
         commands.entity(entity).insert(ExtractedSprite3d {
             transform: *transform,
             asset_id: sprite3d.image.id(),
+            billboard: billboard.into(),
         });
     }
 }
@@ -534,8 +568,13 @@ fn queue_sprite3d(
             // some per-view settings, such as whether the view is HDR, but for
             // simplicity's sake we simply hard-code the view's characteristics,
             // with the exception of number of MSAA samples.
+            let key = Sprite3dPipelineKey {
+                msaa: *msaa,
+                billboard: extracted_sprite3d.billboard,
+            };
+
             let pipeline_id =
-                specialized_render_pipelines.specialize(&pipeline_cache, &sprite3d_pipeline, *msaa);
+                specialized_render_pipelines.specialize(&pipeline_cache, &sprite3d_pipeline, key);
 
             let distance =
                 range_finder.distance_translation(&extracted_sprite3d.transform.translation());

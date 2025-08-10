@@ -9,7 +9,7 @@ use bevy::{
     render::camera::Viewport,
     window::WindowResized,
 };
-use bevy_bor3d::{Sprite3d, Sprite3dPlugin};
+use bevy_bor3d::{Billboard, Sprite3d, Sprite3dPlugin};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use ops::{cos, sin};
 
@@ -54,6 +54,7 @@ fn setup(
                 pos: UVec2::new((index % 2) as u32, (index / 2) as u32),
             },
             Orbiting,
+            Shuffling::default(),
         ));
     }
 
@@ -74,14 +75,20 @@ fn setup(
         Transform::from_xyz(1.0, 0.5, -1.0),
     ));
 
-    commands.spawn(Sprite3d {
-        image: asset_server.load_with_settings(
-            "sprites/bossa1.png",
-            |s: &mut ImageLoaderSettings| {
-                s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
-            },
-        ),
-    });
+    commands.spawn((
+        Sprite3d {
+            image: asset_server.load_with_settings(
+                "sprites/bossa1.png",
+                |s: &mut ImageLoaderSettings| {
+                    s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
+                },
+            ),
+        },
+        Transform::from_scale(Vec3::splat(2.0)),
+        Billboard::LookAt,
+        Spinning,
+        Shuffling::default(),
+    ));
 }
 
 #[derive(Component)]

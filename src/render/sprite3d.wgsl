@@ -34,10 +34,39 @@ fn vertex(in: VertexInput) -> VertexOutput {
     // Extend by 1.0 for vec4
     let local_position = vec4<f32>(pre_local_position, 1.0);
 
-    let world_from_local = affine3_to_square(sprite3d.world_from_local);
+    var world_from_local = affine3_to_square(sprite3d.world_from_local);
+    var view_from_world = view.view_from_world;
+#if BILLBOARD == 1 // Forward
+    // Remove entity rotation
+    world_from_local = mat4x4<f32>(
+        vec4<f32>(length(world_from_local[0]), 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, length(world_from_local[1]), 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, length(world_from_local[2]), 0.0),
+        world_from_local[3],
+    );
+
+    // Remove view rotation
+    view_from_world = mat4x4<f32>(
+        vec4<f32>(length(view_from_world[0]), 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, length(view_from_world[1]), 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, length(view_from_world[2]), 0.0),
+        view_from_world[3],
+    );
+#else if BILLBOARD == 2 // LookAt
+    // Compute rotation based on view and 
+    let rotation = mat3x3<f32>(normalize(view_from_world[0].xyz), normalize(view_from_world[1].xyz), normalize(view_from_world[2].xyz));
+    let inverse = transpose(rotation);
+
+    world_from_local = mat4x4<f32>(
+        vec4<f32>(length(world_from_local[0]) * inverse[0], 0.0),
+        vec4<f32>(length(world_from_local[1]) * inverse[1], 0.0),
+        vec4<f32>(length(world_from_local[2]) * inverse[2], 0.0),
+        world_from_local[3],
+    );
+#endif
+
     let world_position = world_from_local * local_position;
-    let clip_from_world = view.clip_from_world;
-    out.clip_position = clip_from_world * world_position;
+    out.clip_position = view.clip_from_view * view_from_world * world_position;
     
     // UV correctly like this?
     out.uv = vec2<f32>(vertex_position.xy) * vec2<f32>(1.0, -1.0) + vec2<f32>(0.0, 1.0);

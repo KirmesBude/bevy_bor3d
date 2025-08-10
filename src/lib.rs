@@ -33,3 +33,10 @@ impl Plugin for Sprite3dPlugin {
 pub struct Sprite3d {
     pub image: Handle<Image>,
 }
+
+#[derive(Component, Debug, Default, Clone, Reflect)]
+pub enum Billboard {
+    #[default]
+    Forward, // Uses negative view forward
+    LookAt, // Always looks at camera
+}

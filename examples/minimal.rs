@@ -17,6 +17,7 @@ fn main() {
         })
         .add_plugins(WorldInspectorPlugin::new())
         .add_systems(Startup, setup)
+        .add_systems(Update, change_image)
         .run();
 }
 
@@ -48,4 +49,17 @@ fn setup(
             },
         ),
     });
+}
+
+fn change_image(
+    mut sprite3d: Single<&mut Sprite3d>,
+    keys: Res<ButtonInput<KeyCode>>,
+    asset_server: Res<AssetServer>,
+) {
+    if keys.just_pressed(KeyCode::Space) {
+        sprite3d.image =
+            asset_server.load_with_settings("sprites/bossa2.png", |s: &mut ImageLoaderSettings| {
+                s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
+            });
+    }
 }
