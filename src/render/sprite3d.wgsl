@@ -17,6 +17,9 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
 };
 
+
+// TODO: For now we assume +y up and +z forward
+// TODO: For now all rotation is ignored for both the camera and the view
 @vertex
 fn vertex(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
@@ -36,33 +39,31 @@ fn vertex(in: VertexInput) -> VertexOutput {
 
     var world_from_local = affine3_to_square(sprite3d.world_from_local);
     var view_from_world = view.view_from_world;
-#if BILLBOARD == 1 // Forward
-    // Remove entity rotation
-    world_from_local = mat4x4<f32>(
-        vec4<f32>(length(world_from_local[0]), 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, length(world_from_local[1]), 0.0, 0.0),
-        vec4<f32>(0.0, 0.0, length(world_from_local[2]), 0.0),
-        world_from_local[3],
-    );
 
-    // Remove view rotation
-    view_from_world = mat4x4<f32>(
-        vec4<f32>(length(view_from_world[0]), 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, length(view_from_world[1]), 0.0, 0.0),
-        vec4<f32>(0.0, 0.0, length(view_from_world[2]), 0.0),
-        view_from_world[3],
-    );
-#else if BILLBOARD == 2 // LookAt
-    // Compute rotation based on view and 
-    let rotation = mat3x3<f32>(normalize(view_from_world[0].xyz), normalize(view_from_world[1].xyz), normalize(view_from_world[2].xyz));
-    let inverse = transpose(rotation);
+#if BILLBOARD != 0
+    // If we billboard, we reverse the the rotation 
 
-    world_from_local = mat4x4<f32>(
-        vec4<f32>(length(world_from_local[0]) * inverse[0], 0.0),
-        vec4<f32>(length(world_from_local[1]) * inverse[1], 0.0),
-        vec4<f32>(length(world_from_local[2]) * inverse[2], 0.0),
-        world_from_local[3],
+    // entity
+    let entity_rotation = mat3x3<f32>(normalize(world_from_local[0].xyz), normalize(world_from_local[1].xyz), normalize(world_from_local[2].xyz));
+    let entity_inverse = transpose(entity_rotation);
+    let entity_inverse_mat4 = mat4x4<f32>(
+        vec4<f32>(entity_inverse[0], 0.0),
+        vec4<f32>(entity_inverse[1], 0.0),
+        vec4<f32>(entity_inverse[2], 0.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0),
     );
+    world_from_local = world_from_local * entity_inverse_mat4;
+
+    // view
+    let view_rotation = mat3x3<f32>(normalize(view_from_world[0].xyz), normalize(view_from_world[1].xyz), normalize(view_from_world[2].xyz));
+    let view_inverse = transpose(view_rotation);
+    let view_inverse_mat4 = mat4x4<f32>(
+        vec4<f32>(view_inverse[0], 0.0),
+        vec4<f32>(view_inverse[1], 0.0),
+        vec4<f32>(view_inverse[2], 0.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0),
+    );
+    view_from_world = view_from_world * view_inverse_mat4;
 #endif
 
     let world_position = world_from_local * local_position;
