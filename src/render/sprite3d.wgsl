@@ -15,6 +15,7 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
+    @location(1) angle: f32,
 };
 
 @vertex
@@ -41,6 +42,19 @@ fn vertex(in: VertexInput) -> VertexOutput {
     var world_from_local = affine3_to_square(sprite3d.world_from_local);
     var view_from_world = view.view_from_world;
 
+    // Project both forward vectors on the 2d plane defined by up and forward
+    let entity_forward = world_from_local * vec4<f32>(0.0, 0.0, 1.0, 1.0);
+
+    let up_forward_plane_mat = mat2x3<f32>(up, forward);
+    let t_up_forward_plane_mat = transpose(up_forward_plane_mat);
+
+    let entity_forward_2d = t_up_forward_plane_mat * entity_forward.xyz;
+    let view_forward_2d = t_up_forward_plane_mat * view.world_position;
+
+    // Calculate the angle between these 2d vectors
+    let angle = acos(dot(normalize(entity_forward_2d), normalize(view_forward_2d))); // TODO: Maybe acos is unnecessary
+    out.angle = angle;
+
     // TODO: For now all rotation is ignored for both the camera and the view
 #if BILLBOARD != 0
     // If we billboard, we reverse the the rotation 
@@ -55,6 +69,10 @@ fn vertex(in: VertexInput) -> VertexOutput {
         vec4<f32>(0.0, 0.0, 0.0, 1.0),
     );
     world_from_local = world_from_local * entity_inverse_mat4;
+#endif
+
+#if BILLBOARD == 1
+     // If we billboard forward, we reverse the the rotation 
 
     // view
     let view_rotation = mat3x3<f32>(normalize(view_from_world[0].xyz), normalize(view_from_world[1].xyz), normalize(view_from_world[2].xyz));
@@ -73,8 +91,9 @@ fn vertex(in: VertexInput) -> VertexOutput {
 
     let view_world_position = view.world_position;
     let entity_world_position = world_from_local[3].xyz;
+    let dir = normalize(view_world_position - entity_world_position);
 
-    let look_at_back = normalize(view_world_position - entity_world_position); // TODO: Can this fail?
+    let look_at_back = dir; // TODO: Can this fail?
     let look_at_right = normalize(cross(up, look_at_back)); // TODO: Can this fail?
     let look_at_up = cross(look_at_back, look_at_right);
 
@@ -92,16 +111,22 @@ fn vertex(in: VertexInput) -> VertexOutput {
     
     // UV correctly like this?
     out.uv = vec2<f32>(vertex_position.xy) * vec2<f32>(1.0, -1.0) + vec2<f32>(0.0, 1.0);
-    
+
     return out;
 }
 
-@group(1) @binding(0) var texture: texture_2d<f32>;
+@group(1) @binding(0) var texture: texture_2d_array<f32>;
 @group(1) @binding(1) var texture_sampler: sampler;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    var color = textureSample(texture, texture_sampler, in.uv);
+#if BILLBOARD == 0
+    let layer = 0;
+#else
+    // TODO: PI const?
+    let layer = i32(in.angle / (2.0 * 3.14) * 8.0) % 8;
+#endif
+    var color = textureSample(texture, texture_sampler, in.uv, layer);
     
     return color;
 }

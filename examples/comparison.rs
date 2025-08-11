@@ -35,13 +35,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     let image =
-        asset_server.load_with_settings("sprites/bossa1.png", |s: &mut ImageLoaderSettings| {
+        asset_server.load_with_settings("sprites/array.png", |s: &mut ImageLoaderSettings| {
             s.sampler = ImageSampler::nearest(); // TODO: Without this there is a weird "glow/border"
         });
 
     commands.spawn((
         Sprite3d {
             image: image.clone(),
+            layers: 8,
         },
         Transform::default(),
     ));
@@ -49,6 +50,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Sprite3d {
             image: image.clone(),
+            layers: 8,
         },
         Billboard::Forward,
         Transform::from_translation(vec3(-60.0, 0.0, 0.0)),
@@ -57,6 +59,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Sprite3d {
             image: image.clone(),
+            layers: 8,
         },
         Billboard::LookAt,
         Transform::from_translation(vec3(60.0, 0.0, 0.0)),

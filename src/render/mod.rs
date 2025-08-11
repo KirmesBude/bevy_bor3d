@@ -31,7 +31,7 @@ use bevy::{
             RawBufferVec, RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderDefVal,
             ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines,
             TextureFormat, TextureSampleType, UniformBuffer, VertexState,
-            binding_types::{sampler, texture_2d, uniform_buffer},
+            binding_types::{sampler, texture_2d_array, uniform_buffer},
         },
         renderer::{RenderDevice, RenderQueue},
         sync_world::RenderEntity,
@@ -143,7 +143,7 @@ impl FromWorld for Sprite3dPipeline {
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::FRAGMENT,
                 (
-                    texture_2d(TextureSampleType::Float { filterable: true }),
+                    texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
                 ),
             ),
