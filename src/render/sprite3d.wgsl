@@ -124,9 +124,9 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let layer = 0;
 #else
     // TODO: PI const?
-    let layer = i32(in.angle / (2.0 * 3.14) * 8.0) % 8;
+    let layer = in.angle / radians(360.0) * f32(textureNumLayers(texture));
 #endif
-    var color = textureSample(texture, texture_sampler, in.uv, layer);
+    var color = textureSample(texture, texture_sampler, in.uv, u32(layer));
     
     return color;
 }
